@@ -5,28 +5,40 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('mist-particles', {
+      AFRAME.registerComponent('pigment-particles', {
         init: function () {
           const el = this.el;
-          const count = 40;
+          const count = 55;
+          const blues = ['#1a3a5c', '#2a5a8c', '#4a7fa5', '#1e4d6b', '#3b6e91', '#0d2a45'];
+
           for (let i = 0; i < count; i++) {
             const particle = document.createElement('a-sphere');
-            const x = (Math.random() - 0.5) * 0.5;
-            const y = (Math.random() - 0.5) * 0.3;
-            const z = Math.random() * 0.05;
-            const size = 0.004 + Math.random() * 0.012;
-            const duration = 3000 + Math.random() * 4000;
-            const delay = Math.random() * 4000;
-            const riseAmount = 0.15 + Math.random() * 0.2;
-            const color = Math.random() > 0.5 ? '#ffffff' : '#b8d4e8';
 
-            particle.setAttribute('position', `${x} ${y} ${z}`);
+            // Start position — scattered across the blue area of the image
+            const x = (Math.random() - 0.5) * 0.45;
+            const y = (Math.random() - 0.5) * 0.35;
+            const startZ = 0.0;
+
+            // End position — drifts toward viewer and slightly wanders
+            const endX = x + (Math.random() - 0.5) * 0.08;
+            const endY = y + (Math.random() - 0.5) * 0.08;
+            const endZ = 0.08 + Math.random() * 0.14;
+
+            const size = 0.003 + Math.random() * 0.009;
+            const duration = 2500 + Math.random() * 3500;
+            const delay = Math.random() * 5000;
+            const color = blues[Math.floor(Math.random() * blues.length)];
+
+            particle.setAttribute('position', `${x} ${y} ${startZ}`);
             particle.setAttribute('radius', size);
             particle.setAttribute('color', color);
-            particle.setAttribute('material', 'transparent: true; opacity: 0.6; shader: flat');
-            particle.setAttribute('animation__rise', `property: position; to: ${x + (Math.random()-0.5)*0.05} ${y + riseAmount} ${z + 0.03}; dur: ${duration}; delay: ${delay}; loop: true; easing: easeInOutSine`);
-            particle.setAttribute('animation__fade', `property: material.opacity; from: 0; to: 0.6; dur: ${duration * 0.3}; delay: ${delay}; loop: true; easing: easeInSine`);
-            particle.setAttribute('animation__fadeout', `property: material.opacity; from: 0.6; to: 0; dur: ${duration * 0.4}; delay: ${delay + duration * 0.6}; loop: true; easing: easeOutSine`);
+            particle.setAttribute('material', `transparent: true; opacity: 0; shader: flat`);
+
+            // Move toward viewer
+            particle.setAttribute('animation__move', `property: position; to: ${endX} ${endY} ${endZ}; dur: ${duration}; delay: ${delay}; loop: true; easing: easeOutSine`);
+            // Fade in then out
+            particle.setAttribute('animation__fadein', `property: material.opacity; from: 0; to: 0.85; dur: ${duration * 0.25}; delay: ${delay}; loop: true; easing: easeOutSine`);
+            particle.setAttribute('animation__fadeout', `property: material.opacity; from: 0.85; to: 0; dur: ${duration * 0.35}; delay: ${delay + duration * 0.6}; loop: true; easing: easeInSine`);
 
             el.appendChild(particle);
           }
@@ -45,45 +57,9 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-
-        <!-- Mist particles -->
-        <a-entity mist-particles></a-entity>
-
-        <!-- Outer breathing ring -->
-        <a-torus
-          position="0 0 0.04"
-          radius="0.18"
-          radius-tubular="0.003"
-          color="#4a7fa5"
-          material="transparent: true; opacity: 0.35"
-          animation__rotate="property: rotation; to: 0 0 360; dur: 16000; loop: true; easing: linear"
-          animation__pulse="property: scale; to: 1.12 1.12 1; dur: 4000; loop: true; dir: alternate; easing: easeInOutSine"
-        ></a-torus>
-
-        <!-- Inner tilted ring -->
-        <a-torus
-          position="0 0.04 0.07"
-          radius="0.1"
-          radius-tubular="0.002"
-          color="#1a3a5c"
-          material="transparent: true; opacity: 0.25"
-          rotation="55 0 20"
-          animation__rotate="property: rotation; from: 55 0 20; to: 55 360 20; dur: 22000; loop: true; easing: linear"
-          animation__float="property: position; to: 0 0.07 0.09; dur: 5000; loop: true; dir: alternate; easing: easeInOutSine"
-        ></a-torus>
-
-        <!-- Glowing white channel -->
-        <a-plane
-          position="0.03 0 0.06"
-          width="0.04"
-          height="0.25"
-          color="#ddeeff"
-          material="transparent: true; opacity: 0.12; shader: flat"
-          animation__pulse="property: material.opacity; to: 0.28; dur: 3000; loop: true; dir: alternate; easing: easeInOutSine"
-          animation__rise="property: position; to: 0.03 0.08 0.08; dur: 5000; loop: true; dir: alternate; easing: easeInOutSine"
-        ></a-plane>
-
+        <a-entity pigment-particles></a-entity>
       </a-entity>
+
     </a-scene>
   </body>
 </html>
