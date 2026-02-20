@@ -5,45 +5,51 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('ink-flow', {
+      AFRAME.registerComponent('ink-wave', {
         init: function () {
           this.particles = [];
           const el = this.el;
-          const count = 80;
-          const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854', '#1e4d6b'];
+          const count = 200;
+          const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854', '#1e4d6b', '#5b8fad'];
 
           for (let i = 0; i < count; i++) {
-            const shard = document.createElement('a-plane');
+            const dot = document.createElement('a-sphere');
 
-            // Spread across the blue region (upper-left heavy, matching the image)
-            const x = (Math.random() - 0.6) * 0.5;
-            const y = (Math.random() - 0.3) * 0.4;
-            const w = 0.006 + Math.random() * 0.016;
-            const h = w * (1.5 + Math.random() * 4);
-            const color = blues[Math.floor(Math.random() * blues.length)];
+            // Spread across the blue region
+            const x = (Math.random() - 0.55) * 0.52;
+            const y = (Math.random() - 0.3)  * 0.42;
 
-            shard.setAttribute('width', w);
-            shard.setAttribute('height', h);
-            shard.setAttribute('color', color);
-            shard.setAttribute('material', 'transparent: true; opacity: 0; shader: flat; side: double');
-            shard.setAttribute('position', `${x} ${y} 0`);
+            const radius = 0.002 + Math.random() * 0.005;
+            const color  = blues[Math.floor(Math.random() * blues.length)];
 
-            el.appendChild(shard);
+            // Wave phase based on X position → wave travels left to right
+            // Plus random offset so it doesn't look too uniform
+            const wavePhase = (x + 0.26) / 0.52 * Math.PI * 2 + (Math.random() - 0.5) * 1.2;
+
+            // Orbit size — how far toward viewer and how much Y arc
+            const orbitZ = 0.18 + Math.random() * 0.22;
+            const orbitY = 0.04 + Math.random() * 0.08;
+
+            // Speed variation
+            const speed  = 1.2 + Math.random() * 1.6; // seconds per orbit
+
+            dot.setAttribute('radius', radius);
+            dot.setAttribute('color', color);
+            dot.setAttribute('material', 'transparent: true; opacity: 0; shader: flat');
+            dot.setAttribute('position', `${x} ${y} 0`);
+
+            el.appendChild(dot);
 
             this.particles.push({
-              el: shard,
+              el: dot,
               baseX: x,
               baseY: y,
-              // Stagger start progress so they don't all move together
+              wavePhase,
+              orbitZ,
+              orbitY,
+              speed,
+              // stagger start so they're already mid-journey
               progress: Math.random(),
-              // How long one full trip takes (seconds)
-              speed: 0.8 + Math.random() * 1.4,
-              // How far toward viewer it travels
-              maxZ: 0.35 + Math.random() * 0.35,
-              // Slight drift sideways on the journey
-              driftX: (Math.random() - 0.5) * 0.08,
-              driftY: (Math.random() - 0.5) * 0.05,
-              tiltBase: Math.random() * 360,
               ready: false
             });
           }
@@ -58,39 +64,30 @@
               p.ready = true;
             }
 
-            // Advance progress 0 → 1 then reset
+            // Advance progress 0→1, loop
             p.progress += dtSec / p.speed;
             if (p.progress > 1) p.progress -= 1;
 
-            const prog = p.progress; // 0 to 1
+            const angle = p.progress * Math.PI * 2 + p.wavePhase;
 
-            // Z: eased journey from surface to viewer
-            const z = p.maxZ * Math.pow(prog, 0.6);
-
-            // X, Y: gentle drift as it travels
-            const x = p.baseX + p.driftX * prog;
-            const y = p.baseY + p.driftY * prog;
-
-            // Opacity: quick fade in, long hold, fade out near end
-            let opacity;
-            if (prog < 0.15) {
-              opacity = prog / 0.15;
-            } else if (prog > 0.75) {
-              opacity = 1 - (prog - 0.75) / 0.25;
-            } else {
-              opacity = 1;
-            }
-            opacity *= 0.85;
-
-            // Tumble as it travels
-            const tiltZ = (p.tiltBase + prog * 120) * Math.PI / 180;
-            const tiltX = prog * 0.4;
+            // Circular orbit in Z:
+            // z goes 0 (surface) → orbitZ (toward viewer) → 0 → -orbitZ (behind painting) → 0
+            // We only show particles when z >= 0 (in front of painting)
+            const z = p.orbitZ * Math.sin(angle);
+            const yArc = p.orbitY * (1 - Math.cos(angle)) * 0.5;
 
             const obj = p.el.object3D;
-            obj.position.set(x, y, z);
-            obj.rotation.set(tiltX, 0, tiltZ);
+            obj.position.set(p.baseX, p.baseY + yArc, Math.max(z, 0));
 
-            // Update opacity directly on material
+            // Opacity: visible only when in front of painting (z > 0)
+            // Fades in as it emerges, fades out as it returns
+            let opacity = 0;
+            if (z > 0) {
+              // z normalized 0→1→0 during front half of orbit
+              const norm = z / p.orbitZ;
+              opacity = Math.sin(norm * Math.PI) * 0.9;
+            }
+
             const mesh = p.el.getObject3D('mesh');
             if (mesh && mesh.material) {
               mesh.material.opacity = opacity;
@@ -111,7 +108,7 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-entity ink-flow></a-entity>
+        <a-entity ink-wave></a-entity>
       </a-entity>
 
     </a-scene>
