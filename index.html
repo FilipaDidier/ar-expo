@@ -5,40 +5,39 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('ink-loop', {
+      AFRAME.registerComponent('ink-comet', {
         init: function () {
           this.particles = [];
-          this.time = 0;
           const el = this.el;
           const count = 600;
           const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854'];
 
-          // The loop is a tilted ellipse anchored in the blue zone
-          // Center of the loop
-          this.cx = -0.08;
+          // Loop center — anchored in the dense blue zone (upper left of painting)
+          this.cx = -0.10;
           this.cy =  0.08;
 
-          // Ellipse radii
-          this.rx = 0.08;  // horizontal spread of the ribbon
-          this.ry = 0.18;  // vertical radius of the loop
-          this.rz = 0.35;  // how far toward viewer
+          // Arc dimensions
+          this.rx = 0.12;   // horizontal spread
+          this.ry = 0.22;   // vertical spread
+          this.rz = 0.75;   // MUCH deeper toward viewer
 
-          // Tilt: how much the ellipse leans toward viewer
-          // tilt=0 means flat against painting, tilt=PI/2 means facing viewer
-          this.tilt = Math.PI * 0.55;
+          // Tilt of the ellipse toward the viewer
+          this.tilt = Math.PI * 0.60;
+
+          // How much of the loop is populated (0.65 = 65%)
+          // The gap is the part hidden behind the painting
+          this.arcFraction = 0.65;
 
           for (let i = 0; i < count; i++) {
             const dot = document.createElement('a-sphere');
-
             const radius = 0.002 + Math.random() * 0.003;
             const color  = blues[Math.floor(Math.random() * blues.length)];
 
-            // Evenly distribute particles around the loop at start
-            const baseAngle = (i / count) * Math.PI * 2;
+            // Distribute only across arcFraction of the loop
+            const baseAngle = (i / count) * Math.PI * 2 * this.arcFraction;
 
-            // Small perpendicular jitter — gives ribbon its width
-            const jitterX = (Math.random() - 0.5) * 0.05;
-            const jitterY = (Math.random() - 0.5) * 0.02;
+            const jitterX = (Math.random() - 0.5) * 0.045;
+            const jitterY = (Math.random() - 0.5) * 0.025;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
@@ -47,6 +46,8 @@
 
             this.particles.push({
               el: dot,
+              // position along the arc 0→1, spread evenly
+              t: i / count,
               angle: baseAngle,
               jitterX,
               jitterY,
@@ -56,47 +57,46 @@
         },
 
         tick: function (t, dt) {
-          this.time += dt * 0.001;
-          // All particles advance at exactly the same speed — one full loop every 5 seconds
-          const advance = (dt * 0.001) * (Math.PI * 2 / 5.0);
+          const advance = (dt * 0.001) * (Math.PI * 2 / 6.0); // one loop every 6 seconds
 
-          const cx = this.cx;
-          const cy = this.cy;
-          const rx = this.rx;
-          const ry = this.ry;
-          const rz = this.rz;
+          const cx   = this.cx;
+          const cy   = this.cy;
+          const rx   = this.rx;
+          const ry   = this.ry;
+          const rz   = this.rz;
           const tilt = this.tilt;
+          const arc  = this.arcFraction;
 
-          this.particles.forEach(p => {
+          this.particles.forEach((p, i) => {
             if (!p.ready) {
               if (!p.el.object3D) return;
               p.ready = true;
             }
 
-            // All advance together
+            // All advance at the same speed
             p.angle += advance;
             if (p.angle > Math.PI * 2) p.angle -= Math.PI * 2;
 
             const a = p.angle;
 
-            // Tilted ellipse equations
-            // x: horizontal spread
-            // y: vertical component, affected by tilt
-            // z: depth component, fully toward viewer when sin(a) = 1
             const x = cx + rx * Math.cos(a) + p.jitterX;
             const y = cy + ry * Math.sin(a) * Math.cos(tilt) + p.jitterY;
             const z = rz * Math.sin(a) * Math.sin(tilt);
 
-            const obj = p.el.object3D;
-            obj.position.set(x, y, Math.max(z, 0));
+            p.el.object3D.position.set(x, y, Math.max(z, 0));
 
-            // Only visible when in front of the painting (z >= 0)
-            // Fade in as emerging, fade out as returning
+            // Opacity:
+            // - invisible behind the painting (z < 0)
+            // - head of comet: full brightness
+            // - tail: fades out gradually
+            // p.t = 0 is head, p.t = 1 is tail end
             let opacity = 0;
             if (z > 0) {
-              // normalized 0→1→0 during front half
-              const norm = z / (rz * Math.sin(tilt));
-              opacity = Math.sin(norm * Math.PI) * 0.92;
+              // tail fade: head (t=0) is bright, tail (t=1) fades to 0
+              const tailFade = 1 - Math.pow(p.t, 0.6);
+              // also fade near z=0 so emergence/return is smooth
+              const zFade = Math.min(z / 0.08, 1);
+              opacity = tailFade * zFade * 0.92;
             }
 
             const mesh = p.el.getObject3D('mesh');
@@ -119,7 +119,7 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-entity ink-loop></a-entity>
+        <a-entity ink-comet></a-entity>
       </a-entity>
 
     </a-scene>
