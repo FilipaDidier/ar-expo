@@ -5,10 +5,9 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('ink-wave', {
+      AFRAME.registerComponent('ink-flow', {
         init: function () {
           this.particles = [];
-          this.time = 0;
           const el = this.el;
           const count = 80;
           const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854', '#1e4d6b'];
@@ -16,16 +15,17 @@
           for (let i = 0; i < count; i++) {
             const shard = document.createElement('a-plane');
 
-            const x = (Math.random() - 0.5) * 0.45;
-            const y = (Math.random() - 0.5) * 0.38;
-            const w = 0.005 + Math.random() * 0.014;
-            const h = w * (1 + Math.random() * 3);
+            // Spread across the blue region (upper-left heavy, matching the image)
+            const x = (Math.random() - 0.6) * 0.5;
+            const y = (Math.random() - 0.3) * 0.4;
+            const w = 0.006 + Math.random() * 0.016;
+            const h = w * (1.5 + Math.random() * 4);
             const color = blues[Math.floor(Math.random() * blues.length)];
 
             shard.setAttribute('width', w);
             shard.setAttribute('height', h);
             shard.setAttribute('color', color);
-            shard.setAttribute('material', 'transparent: true; opacity: 0.8; shader: flat; side: double');
+            shard.setAttribute('material', 'transparent: true; opacity: 0; shader: flat; side: double');
             shard.setAttribute('position', `${x} ${y} 0`);
 
             el.appendChild(shard);
@@ -34,44 +34,67 @@
               el: shard,
               baseX: x,
               baseY: y,
-              phase: Math.random() * Math.PI * 2,
-              freq:  0.6 + Math.random() * 1.0,
-              ampZ:  0.08 + Math.random() * 0.18,
-              ampX:  0.02 + Math.random() * 0.04,
-              ampY:  0.01 + Math.random() * 0.03,
-              tilt:  Math.random() * 40 - 20,
+              // Stagger start progress so they don't all move together
+              progress: Math.random(),
+              // How long one full trip takes (seconds)
+              speed: 0.8 + Math.random() * 1.4,
+              // How far toward viewer it travels
+              maxZ: 0.35 + Math.random() * 0.35,
+              // Slight drift sideways on the journey
+              driftX: (Math.random() - 0.5) * 0.08,
+              driftY: (Math.random() - 0.5) * 0.05,
+              tiltBase: Math.random() * 360,
               ready: false
             });
           }
         },
 
-        tick: function (t) {
-          const T = t * 0.001;
+        tick: function (t, dt) {
+          const dtSec = dt * 0.001;
 
           this.particles.forEach(p => {
-            // Wait until the mesh is actually in the scene
             if (!p.ready) {
               if (!p.el.object3D) return;
               p.ready = true;
             }
 
+            // Advance progress 0 → 1 then reset
+            p.progress += dtSec / p.speed;
+            if (p.progress > 1) p.progress -= 1;
+
+            const prog = p.progress; // 0 to 1
+
+            // Z: eased journey from surface to viewer
+            const z = p.maxZ * Math.pow(prog, 0.6);
+
+            // X, Y: gentle drift as it travels
+            const x = p.baseX + p.driftX * prog;
+            const y = p.baseY + p.driftY * prog;
+
+            // Opacity: quick fade in, long hold, fade out near end
+            let opacity;
+            if (prog < 0.15) {
+              opacity = prog / 0.15;
+            } else if (prog > 0.75) {
+              opacity = 1 - (prog - 0.75) / 0.25;
+            } else {
+              opacity = 1;
+            }
+            opacity *= 0.85;
+
+            // Tumble as it travels
+            const tiltZ = (p.tiltBase + prog * 120) * Math.PI / 180;
+            const tiltX = prog * 0.4;
+
             const obj = p.el.object3D;
-            const s = Math.sin(T * p.freq + p.phase);
-            const c = Math.cos(T * p.freq * 0.7 + p.phase);
+            obj.position.set(x, y, z);
+            obj.rotation.set(tiltX, 0, tiltZ);
 
-            // Move in Z (toward viewer and back), X, Y
-            obj.position.set(
-              p.baseX + c * p.ampX,
-              p.baseY + s * p.ampY,
-              p.ampZ * (s + 1) * 0.5   // always 0 → ampZ, surges toward viewer
-            );
-
-            // Tilt as it moves
-            obj.rotation.set(
-              c * 0.3,
-              s * 0.2,
-              (p.tilt + s * 25) * Math.PI / 180
-            );
+            // Update opacity directly on material
+            const mesh = p.el.getObject3D('mesh');
+            if (mesh && mesh.material) {
+              mesh.material.opacity = opacity;
+            }
           });
         }
       });
@@ -88,7 +111,7 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-entity ink-wave></a-entity>
+        <a-entity ink-flow></a-entity>
       </a-entity>
 
     </a-scene>
