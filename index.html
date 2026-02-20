@@ -5,21 +5,27 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('ink-stream', {
+      AFRAME.registerComponent('ink-loop', {
         init: function () {
           this.particles = [];
           this.time = 0;
           const el = this.el;
-          const count = 500;
+          const count = 600;
           const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854'];
 
-          // PATH: three points defining the arc
-          // A = start on painting (dense blue area, upper-left)
-          // B = farthest point toward viewer (lower, closer)
-          // C = return point on painting (same blue zone)
-          this.A = { x: -0.13, y:  0.10, z: 0.0  };
-          this.B = { x: -0.02, y: -0.06, z: 0.40  };
-          this.C = { x: -0.13, y:  0.10, z: 0.0  };
+          // The loop is a tilted ellipse anchored in the blue zone
+          // Center of the loop
+          this.cx = -0.08;
+          this.cy =  0.08;
+
+          // Ellipse radii
+          this.rx = 0.08;  // horizontal spread of the ribbon
+          this.ry = 0.18;  // vertical radius of the loop
+          this.rz = 0.35;  // how far toward viewer
+
+          // Tilt: how much the ellipse leans toward viewer
+          // tilt=0 means flat against painting, tilt=PI/2 means facing viewer
+          this.tilt = Math.PI * 0.55;
 
           for (let i = 0; i < count; i++) {
             const dot = document.createElement('a-sphere');
@@ -27,12 +33,12 @@
             const radius = 0.002 + Math.random() * 0.003;
             const color  = blues[Math.floor(Math.random() * blues.length)];
 
-            // Spread particles evenly along the path at start
-            const progress = i / count;
+            // Evenly distribute particles around the loop at start
+            const baseAngle = (i / count) * Math.PI * 2;
 
-            // Tiny perpendicular jitter to give the stream width
-            const jitterX = (Math.random() - 0.5) * 0.04;
-            const jitterY = (Math.random() - 0.5) * 0.04;
+            // Small perpendicular jitter — gives ribbon its width
+            const jitterX = (Math.random() - 0.5) * 0.05;
+            const jitterY = (Math.random() - 0.5) * 0.02;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
@@ -41,28 +47,25 @@
 
             this.particles.push({
               el: dot,
-              progress,
+              angle: baseAngle,
               jitterX,
               jitterY,
-              speed: 0.18 + Math.random() * 0.04, // very close speeds = moves as one body
               ready: false
             });
           }
         },
 
-        // Quadratic bezier between three points
-        bezier: function(A, B, C, t) {
-          const u = 1 - t;
-          return {
-            x: u * u * A.x + 2 * u * t * B.x + t * t * C.x,
-            y: u * u * A.y + 2 * u * t * B.y + t * t * C.y,
-            z: u * u * A.z + 2 * u * t * B.z + t * t * C.z,
-          };
-        },
-
         tick: function (t, dt) {
           this.time += dt * 0.001;
-          const A = this.A, B = this.B, C = this.C;
+          // All particles advance at exactly the same speed — one full loop every 5 seconds
+          const advance = (dt * 0.001) * (Math.PI * 2 / 5.0);
+
+          const cx = this.cx;
+          const cy = this.cy;
+          const rx = this.rx;
+          const ry = this.ry;
+          const rz = this.rz;
+          const tilt = this.tilt;
 
           this.particles.forEach(p => {
             if (!p.ready) {
@@ -70,29 +73,31 @@
               p.ready = true;
             }
 
-            // Advance along path, loop
-            p.progress += p.speed * 0.001 * dt * 0.001 * 60;
-            if (p.progress > 1) p.progress -= 1;
+            // All advance together
+            p.angle += advance;
+            if (p.angle > Math.PI * 2) p.angle -= Math.PI * 2;
 
-            const pos = this.bezier(A, B, C, p.progress);
+            const a = p.angle;
 
-            p.el.object3D.position.set(
-              pos.x + p.jitterX,
-              pos.y + p.jitterY,
-              pos.z
-            );
+            // Tilted ellipse equations
+            // x: horizontal spread
+            // y: vertical component, affected by tilt
+            // z: depth component, fully toward viewer when sin(a) = 1
+            const x = cx + rx * Math.cos(a) + p.jitterX;
+            const y = cy + ry * Math.sin(a) * Math.cos(tilt) + p.jitterY;
+            const z = rz * Math.sin(a) * Math.sin(tilt);
 
-            // Opacity: fade in leaving painting, fade out returning
-            let opacity;
-            const prog = p.progress;
-            if (prog < 0.08) {
-              opacity = prog / 0.08;
-            } else if (prog > 0.88) {
-              opacity = (1 - prog) / 0.12;
-            } else {
-              opacity = 1.0;
+            const obj = p.el.object3D;
+            obj.position.set(x, y, Math.max(z, 0));
+
+            // Only visible when in front of the painting (z >= 0)
+            // Fade in as emerging, fade out as returning
+            let opacity = 0;
+            if (z > 0) {
+              // normalized 0→1→0 during front half
+              const norm = z / (rz * Math.sin(tilt));
+              opacity = Math.sin(norm * Math.PI) * 0.92;
             }
-            opacity *= 0.9;
 
             const mesh = p.el.getObject3D('mesh');
             if (mesh && mesh.material) {
@@ -114,7 +119,7 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-entity ink-stream></a-entity>
+        <a-entity ink-loop></a-entity>
       </a-entity>
 
     </a-scene>
