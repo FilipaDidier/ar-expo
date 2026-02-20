@@ -9,27 +9,38 @@
         init: function () {
           this.particles = [];
           const el = this.el;
-          const count = 600;
-          const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854'];
+          const count = 800;
+          const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854', '#0a1f33'];
 
-          this.cx = -0.10;
-          this.cy =  0.08;
+          // Exit point: red mark (upper right blue zone)
+          this.ax = 0.16;
+          this.ay = 0.13;
 
-          this.rx = 0.30;   // wider horizontal
-          this.ry = 0.28;   // similar to rx = rounder oval
-          this.rz = 0.75;
-          this.tilt = Math.PI * 0.60;
-          this.arcFraction = 0.65;
+          // Return point: green mark (left middle blue zone)
+          this.bx = -0.18;
+          this.by = 0.02;
+
+          // Max depth toward viewer
+          this.maxZ = 0.90;
 
           for (let i = 0; i < count; i++) {
             const dot = document.createElement('a-sphere');
-            const radius = 0.003 + Math.random() * 0.004;
+            const radius = 0.002 + Math.random() * 0.004;
             const color  = blues[Math.floor(Math.random() * blues.length)];
-            const baseAngle = (i / count) * Math.PI * 2 * this.arcFraction;
 
-            // More jitter for a thicker stream
-            const jitterX = (Math.random() - 0.5) * 0.09;
-            const jitterY = (Math.random() - 0.5) * 0.06;
+            // Spread particles evenly along the arc at start
+            const baseT = i / count;
+
+            // Natural density variation: jitter is wider in the middle of stream,
+            // tighter at head and tail — gives organic uneven thickness
+            const densityEnvelope = Math.sin(baseT * Math.PI);
+            const jitterScale = 0.03 + densityEnvelope * 0.07;
+
+            // Additional slow sine modulation along the stream for lumpy natural look
+            const lumpiness = 1 + 0.4 * Math.sin(baseT * Math.PI * 5 + Math.random() * 2);
+
+            const jitterX = (Math.random() - 0.5) * jitterScale * lumpiness;
+            const jitterY = (Math.random() - 0.5) * jitterScale * 0.6 * lumpiness;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
@@ -38,8 +49,7 @@
 
             this.particles.push({
               el: dot,
-              t: i / count,
-              angle: baseAngle,
+              t: baseT,      // position along arc 0=head 1=tail
               jitterX,
               jitterY,
               ready: false
@@ -47,15 +57,24 @@
           }
         },
 
-        tick: function (t, dt) {
-          const advance = (dt * 0.001) * (Math.PI * 2 / 6.0);
+        // Compute position on the arc for parameter t (0→1)
+        // x, y: lerp from red to green with a slight downward bow
+        // z: deep sine arc toward viewer
+        getPos: function(t) {
+          const ax = this.ax, ay = this.ay;
+          const bx = this.bx, by = this.by;
 
-          const cx   = this.cx;
-          const cy   = this.cy;
-          const rx   = this.rx;
-          const ry   = this.ry;
-          const rz   = this.rz;
-          const tilt = this.tilt;
+          const x = ax + (bx - ax) * t;
+          // Slight downward bow at midpoint (the "falling" feel)
+          const y = ay + (by - ay) * t - 0.06 * Math.sin(t * Math.PI);
+          const z = this.maxZ * Math.sin(t * Math.PI);
+
+          return { x, y, z };
+        },
+
+        tick: function (t, dt) {
+          // All particles advance at same speed — full loop every 6 seconds
+          const advance = (dt * 0.001) / 6.0;
 
           this.particles.forEach(p => {
             if (!p.ready) {
@@ -63,28 +82,33 @@
               p.ready = true;
             }
 
-            p.angle += advance;
-            if (p.angle > Math.PI * 2) p.angle -= Math.PI * 2;
+            p.t += advance;
+            if (p.t > 1) p.t -= 1;
 
-            const a = p.angle;
-            const z = rz * Math.sin(a) * Math.sin(tilt);
+            const pos = this.getPos(p.t);
 
-            if (z <= 0) {
-              // Hide completely behind painting — no clamping, no flickering
-              p.el.object3D.position.set(cx, cy, -1);
+            if (pos.z <= 0.001) {
+              // Behind the painting — fully hide, no flicker
+              p.el.object3D.position.set(0, 0, -2);
               const mesh = p.el.getObject3D('mesh');
               if (mesh && mesh.material) mesh.material.opacity = 0;
               return;
             }
 
-            const x = cx + rx * Math.cos(a) + p.jitterX;
-            const y = cy + ry * Math.sin(a) * Math.cos(tilt) + p.jitterY;
+            p.el.object3D.position.set(
+              pos.x + p.jitterX,
+              pos.y + p.jitterY,
+              pos.z
+            );
 
-            p.el.object3D.position.set(x, y, z);
-
-            const tailFade = 1 - Math.pow(p.t, 0.6);
-            const zFade    = Math.min(z / 0.08, 1);
-            const opacity  = tailFade * zFade * 0.92;
+            // Opacity:
+            // - fade in as head emerges from painting (t near 0)
+            // - fade out as tail returns to painting (t near 1)
+            // - tail (high t) is dimmer than head (low t) for comet effect
+            const emergeFade = Math.min(p.t / 0.06, 1);
+            const returnFade = Math.min((1 - p.t) / 0.06, 1);
+            const tailDim    = 1 - Math.pow(p.t, 0.5) * 0.5;
+            const opacity    = emergeFade * returnFade * tailDim * 0.92;
 
             const mesh = p.el.getObject3D('mesh');
             if (mesh && mesh.material) mesh.material.opacity = opacity;
