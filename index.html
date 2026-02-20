@@ -12,32 +12,24 @@
           const count = 600;
           const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854'];
 
-          // Loop center — anchored in the dense blue zone (upper left of painting)
           this.cx = -0.10;
           this.cy =  0.08;
 
-          // Arc dimensions
-          this.rx = 0.12;   // horizontal spread
-          this.ry = 0.22;   // vertical spread
-          this.rz = 0.75;   // MUCH deeper toward viewer
-
-          // Tilt of the ellipse toward the viewer
+          this.rx = 0.30;   // wider horizontal
+          this.ry = 0.28;   // similar to rx = rounder oval
+          this.rz = 0.75;
           this.tilt = Math.PI * 0.60;
-
-          // How much of the loop is populated (0.65 = 65%)
-          // The gap is the part hidden behind the painting
           this.arcFraction = 0.65;
 
           for (let i = 0; i < count; i++) {
             const dot = document.createElement('a-sphere');
-            const radius = 0.002 + Math.random() * 0.003;
+            const radius = 0.003 + Math.random() * 0.004;
             const color  = blues[Math.floor(Math.random() * blues.length)];
-
-            // Distribute only across arcFraction of the loop
             const baseAngle = (i / count) * Math.PI * 2 * this.arcFraction;
 
-            const jitterX = (Math.random() - 0.5) * 0.045;
-            const jitterY = (Math.random() - 0.5) * 0.025;
+            // More jitter for a thicker stream
+            const jitterX = (Math.random() - 0.5) * 0.09;
+            const jitterY = (Math.random() - 0.5) * 0.06;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
@@ -46,7 +38,6 @@
 
             this.particles.push({
               el: dot,
-              // position along the arc 0→1, spread evenly
               t: i / count,
               angle: baseAngle,
               jitterX,
@@ -57,7 +48,7 @@
         },
 
         tick: function (t, dt) {
-          const advance = (dt * 0.001) * (Math.PI * 2 / 6.0); // one loop every 6 seconds
+          const advance = (dt * 0.001) * (Math.PI * 2 / 6.0);
 
           const cx   = this.cx;
           const cy   = this.cy;
@@ -65,44 +56,38 @@
           const ry   = this.ry;
           const rz   = this.rz;
           const tilt = this.tilt;
-          const arc  = this.arcFraction;
 
-          this.particles.forEach((p, i) => {
+          this.particles.forEach(p => {
             if (!p.ready) {
               if (!p.el.object3D) return;
               p.ready = true;
             }
 
-            // All advance at the same speed
             p.angle += advance;
             if (p.angle > Math.PI * 2) p.angle -= Math.PI * 2;
 
             const a = p.angle;
+            const z = rz * Math.sin(a) * Math.sin(tilt);
+
+            if (z <= 0) {
+              // Hide completely behind painting — no clamping, no flickering
+              p.el.object3D.position.set(cx, cy, -1);
+              const mesh = p.el.getObject3D('mesh');
+              if (mesh && mesh.material) mesh.material.opacity = 0;
+              return;
+            }
 
             const x = cx + rx * Math.cos(a) + p.jitterX;
             const y = cy + ry * Math.sin(a) * Math.cos(tilt) + p.jitterY;
-            const z = rz * Math.sin(a) * Math.sin(tilt);
 
-            p.el.object3D.position.set(x, y, Math.max(z, 0));
+            p.el.object3D.position.set(x, y, z);
 
-            // Opacity:
-            // - invisible behind the painting (z < 0)
-            // - head of comet: full brightness
-            // - tail: fades out gradually
-            // p.t = 0 is head, p.t = 1 is tail end
-            let opacity = 0;
-            if (z > 0) {
-              // tail fade: head (t=0) is bright, tail (t=1) fades to 0
-              const tailFade = 1 - Math.pow(p.t, 0.6);
-              // also fade near z=0 so emergence/return is smooth
-              const zFade = Math.min(z / 0.08, 1);
-              opacity = tailFade * zFade * 0.92;
-            }
+            const tailFade = 1 - Math.pow(p.t, 0.6);
+            const zFade    = Math.min(z / 0.08, 1);
+            const opacity  = tailFade * zFade * 0.92;
 
             const mesh = p.el.getObject3D('mesh');
-            if (mesh && mesh.material) {
-              mesh.material.opacity = opacity;
-            }
+            if (mesh && mesh.material) mesh.material.opacity = opacity;
           });
         }
       });
