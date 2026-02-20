@@ -5,43 +5,77 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('pigment-particles', {
+      AFRAME.registerComponent('pigment-dance', {
         init: function () {
           const el = this.el;
-          const count = 55;
-          const blues = ['#1a3a5c', '#2a5a8c', '#4a7fa5', '#1e4d6b', '#3b6e91', '#0d2a45'];
+          const blues = ['#1a3a5c', '#2a5a8c', '#4a7fa5', '#1e4d6b', '#3b6e91', '#0d2a45', '#163854', '#5b8fad'];
 
-          for (let i = 0; i < count; i++) {
-            const particle = document.createElement('a-sphere');
+          // Create multiple orbit groups, each anchored to a point on the blue area
+          const orbits = [
+            { x: -0.15, y:  0.12, rotTo: '360 0 0',   dur: 4200 },
+            { x:  0.05, y:  0.08, rotTo: '0 0 360',   dur: 5800 },
+            { x: -0.08, y: -0.05, rotTo: '360 0 0',   dur: 3900 },
+            { x:  0.10, y:  0.15, rotTo: '0 360 0',   dur: 6500 },
+            { x: -0.20, y:  0.00, rotTo: '360 360 0', dur: 5200 },
+            { x:  0.00, y: -0.10, rotTo: '0 0 360',   dur: 4700 },
+          ];
 
-            // Start position — scattered across the blue area of the image
-            const x = (Math.random() - 0.5) * 0.45;
-            const y = (Math.random() - 0.5) * 0.35;
-            const startZ = 0.0;
+          orbits.forEach((orbit, oi) => {
+            const numParticles = 5 + Math.floor(Math.random() * 4);
 
-            // End position — drifts toward viewer and slightly wanders
-            const endX = x + (Math.random() - 0.5) * 0.08;
-            const endY = y + (Math.random() - 0.5) * 0.08;
-            const endZ = 0.08 + Math.random() * 0.14;
+            for (let i = 0; i < numParticles; i++) {
+              // Pivot sits on the painting surface, in the blue zone
+              const pivot = document.createElement('a-entity');
+              pivot.setAttribute('position', `${orbit.x} ${orbit.y} 0.02`);
 
-            const size = 0.003 + Math.random() * 0.009;
-            const duration = 2500 + Math.random() * 3500;
-            const delay = Math.random() * 5000;
-            const color = blues[Math.floor(Math.random() * blues.length)];
+              const delay = (i / numParticles) * orbit.dur;
+              pivot.setAttribute('animation__rot', `
+                property: rotation;
+                to: ${orbit.rotTo};
+                dur: ${orbit.dur};
+                loop: true;
+                easing: linear;
+                delay: ${delay}
+              `);
 
-            particle.setAttribute('position', `${x} ${y} ${startZ}`);
-            particle.setAttribute('radius', size);
-            particle.setAttribute('color', color);
-            particle.setAttribute('material', `transparent: true; opacity: 0; shader: flat`);
+              // Particle is a flat plane (not a circle) offset from pivot center
+              const fragment = document.createElement('a-plane');
+              const radius = 0.04 + Math.random() * 0.10;
+              const w = 0.006 + Math.random() * 0.016;
+              const h = w * (0.2 + Math.random() * 2.0); // tall/thin shard
+              const color = blues[Math.floor(Math.random() * blues.length)];
+              const opacity = 0.55 + Math.random() * 0.35;
 
-            // Move toward viewer
-            particle.setAttribute('animation__move', `property: position; to: ${endX} ${endY} ${endZ}; dur: ${duration}; delay: ${delay}; loop: true; easing: easeOutSine`);
-            // Fade in then out
-            particle.setAttribute('animation__fadein', `property: material.opacity; from: 0; to: 0.85; dur: ${duration * 0.25}; delay: ${delay}; loop: true; easing: easeOutSine`);
-            particle.setAttribute('animation__fadeout', `property: material.opacity; from: 0.85; to: 0; dur: ${duration * 0.35}; delay: ${delay + duration * 0.6}; loop: true; easing: easeInSine`);
+              fragment.setAttribute('position', `${radius} 0 0`);
+              fragment.setAttribute('width', w);
+              fragment.setAttribute('height', h);
+              fragment.setAttribute('color', color);
+              fragment.setAttribute('material', `transparent: true; opacity: ${opacity}; shader: flat; side: double`);
 
-            el.appendChild(particle);
-          }
+              // Each shard is rotated randomly so it looks like tumbling pigment
+              fragment.setAttribute('rotation', `
+                ${Math.random() * 60 - 30}
+                ${Math.random() * 60 - 30}
+                ${Math.random() * 60 - 30}
+              `);
+
+              // Z-pulse: breathes toward viewer and back, out of phase with rotation
+              const zDur = orbit.dur * (0.5 + Math.random() * 0.5);
+              fragment.setAttribute('animation__z', `
+                property: position;
+                from: ${radius} 0 0;
+                to: ${radius} 0 0.15;
+                dur: ${zDur};
+                loop: true;
+                dir: alternate;
+                easing: easeInOutSine;
+                delay: ${delay}
+              `);
+
+              pivot.appendChild(fragment);
+              el.appendChild(pivot);
+            }
+          });
         }
       });
     </script>
@@ -57,7 +91,7 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-entity pigment-particles></a-entity>
+        <a-entity pigment-dance></a-entity>
       </a-entity>
 
     </a-scene>
