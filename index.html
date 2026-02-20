@@ -12,35 +12,36 @@
           const count = 800;
           const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854', '#0a1f33'];
 
-          // Exit point: red mark (upper right blue zone)
-          this.ax = 0.16;
-          this.ay = 0.13;
+          // RED mark = where comet HEAD exits the painting
+          this.exitX =  0.17;
+          this.exitY =  0.12;
 
-          // Return point: green mark (left middle blue zone)
-          this.bx = -0.18;
-          this.by = 0.02;
+          // GREEN mark = where comet TAIL returns to the painting
+          this.enterX = -0.20;
+          this.enterY = -0.02;
 
-          // Max depth toward viewer
-          this.maxZ = 0.90;
+          // How far the comet bows toward the viewer at peak
+          this.maxZ = 1.1;
+
+          // What fraction of the loop is visible (rest hidden behind painting)
+          // 0.6 = 60% visible, 40% hidden behind painting
+          this.arcFraction = 0.60;
 
           for (let i = 0; i < count; i++) {
             const dot = document.createElement('a-sphere');
             const radius = 0.002 + Math.random() * 0.004;
             const color  = blues[Math.floor(Math.random() * blues.length)];
 
-            // Spread particles evenly along the arc at start
-            const baseT = i / count;
+            // Distribute evenly across the visible arc
+            const baseT = (i / count) * this.arcFraction;
 
-            // Natural density variation: jitter is wider in the middle of stream,
-            // tighter at head and tail — gives organic uneven thickness
-            const densityEnvelope = Math.sin(baseT * Math.PI);
-            const jitterScale = 0.03 + densityEnvelope * 0.07;
+            // Organic thickness: wide in middle, tight at ends, with lumps
+            const envelope = Math.sin((baseT / this.arcFraction) * Math.PI);
+            const lump = 1 + 0.45 * Math.sin((baseT / this.arcFraction) * Math.PI * 4 + Math.random() * 3);
+            const spread = (0.025 + envelope * 0.065) * lump;
 
-            // Additional slow sine modulation along the stream for lumpy natural look
-            const lumpiness = 1 + 0.4 * Math.sin(baseT * Math.PI * 5 + Math.random() * 2);
-
-            const jitterX = (Math.random() - 0.5) * jitterScale * lumpiness;
-            const jitterY = (Math.random() - 0.5) * jitterScale * 0.6 * lumpiness;
+            const jitterX = (Math.random() - 0.5) * spread;
+            const jitterY = (Math.random() - 0.5) * spread * 0.55;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
@@ -49,7 +50,7 @@
 
             this.particles.push({
               el: dot,
-              t: baseT,      // position along arc 0=head 1=tail
+              t: baseT,
               jitterX,
               jitterY,
               ready: false
@@ -57,24 +58,32 @@
           }
         },
 
-        // Compute position on the arc for parameter t (0→1)
-        // x, y: lerp from red to green with a slight downward bow
-        // z: deep sine arc toward viewer
+        // The arc: exits at red, bows deep toward viewer, returns to green
+        // t goes 0→arcFraction for the visible portion
         getPos: function(t) {
-          const ax = this.ax, ay = this.ay;
-          const bx = this.bx, by = this.by;
+          const af = this.arcFraction;
+          // normalized 0→1 across visible arc
+          const n = t / af;
 
-          const x = ax + (bx - ax) * t;
-          // Slight downward bow at midpoint (the "falling" feel)
-          const y = ay + (by - ay) * t - 0.06 * Math.sin(t * Math.PI);
-          const z = this.maxZ * Math.sin(t * Math.PI);
+          // X,Y: interpolate from exit (red) to enter (green)
+          // with a slight rightward bow at the peak (viewer-side)
+          const x = this.exitX + (this.enterX - this.exitX) * n
+                  + 0.12 * Math.sin(n * Math.PI); // bow slightly right at peak
+
+          // Y drops slightly as it comes toward viewer (falling feel)
+          const y = this.exitY + (this.enterY - this.exitY) * n
+                  - 0.08 * Math.sin(n * Math.PI);
+
+          // Z: deep sine arc, 0 at painting, peak in middle, 0 on return
+          const z = this.maxZ * Math.sin(n * Math.PI);
 
           return { x, y, z };
         },
 
         tick: function (t, dt) {
-          // All particles advance at same speed — full loop every 6 seconds
-          const advance = (dt * 0.001) / 6.0;
+          // Full loop every 7 seconds
+          const advance = (dt * 0.001) / 7.0;
+          const af = this.arcFraction;
 
           this.particles.forEach(p => {
             if (!p.ready) {
@@ -83,32 +92,37 @@
             }
 
             p.t += advance;
-            if (p.t > 1) p.t -= 1;
+            if (p.t >= 1.0) p.t -= 1.0;
 
-            const pos = this.getPos(p.t);
+            // Is this particle in the visible arc (0 → arcFraction)?
+            const inArc = p.t <= af;
 
-            if (pos.z <= 0.001) {
-              // Behind the painting — fully hide, no flicker
+            if (!inArc) {
+              // Hidden behind painting — move far back, fully invisible
               p.el.object3D.position.set(0, 0, -2);
               const mesh = p.el.getObject3D('mesh');
               if (mesh && mesh.material) mesh.material.opacity = 0;
               return;
             }
 
+            const pos = this.getPos(p.t);
             p.el.object3D.position.set(
               pos.x + p.jitterX,
               pos.y + p.jitterY,
               pos.z
             );
 
+            // normalized position along visible arc
+            const n = p.t / af;
+
             // Opacity:
-            // - fade in as head emerges from painting (t near 0)
-            // - fade out as tail returns to painting (t near 1)
-            // - tail (high t) is dimmer than head (low t) for comet effect
-            const emergeFade = Math.min(p.t / 0.06, 1);
-            const returnFade = Math.min((1 - p.t) / 0.06, 1);
-            const tailDim    = 1 - Math.pow(p.t, 0.5) * 0.5;
-            const opacity    = emergeFade * returnFade * tailDim * 0.92;
+            // - head (n=0) fades in quickly as it exits painting
+            // - tail (n=1) fades out as it returns
+            // - head brighter than tail (comet effect)
+            const headFade = Math.min(n / 0.04, 1);
+            const tailFade = Math.min((1 - n) / 0.04, 1);
+            const cometDim = 1 - Math.pow(n, 0.4) * 0.55;
+            const opacity  = headFade * tailFade * cometDim * 0.92;
 
             const mesh = p.el.getObject3D('mesh');
             if (mesh && mesh.material) mesh.material.opacity = opacity;
