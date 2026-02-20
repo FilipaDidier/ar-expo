@@ -5,84 +5,129 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('arc-formation', {
+      AFRAME.registerComponent('shape-formation', {
         init: function () {
           this.particles = [];
           this.time = 0;
           const el = this.el;
-          const count = 600;
+          const count = 800;
 
-          // Cercle: centre et rayon
-          this.cx = 0.18;
-          this.cy = 0.22;
-
-          // Timings du cycle (en secondes)
-          this.buildDuration  = 5.0;  // temps pour construire l'arc
-          this.holdDuration   = 2.0;  // temps où l'arc est complet
-          this.fadeDuration   = 3.0;  // temps pour se dissoudre
-          this.pauseDuration  = 1.0;  // pause avant de recommencer
+          // Timings
+          this.buildDuration  = 6.0;
+          this.holdDuration   = 2.5;
+          this.fadeDuration   = 4.0;
+          this.pauseDuration  = 1.5;
           this.cycleDuration  = this.buildDuration + this.holdDuration
                               + this.fadeDuration + this.pauseDuration;
 
-          // Arc MANQUANT: la partie du cercle hors de la photo
-          // L'arc visible dans la photo va de ~120° à ~300°
-          // La partie manquante va de ~300° à ~480° (=120°) en passant par le haut
-          this.arcStart = Math.PI * 1.65;  // ~300°
-          this.arcEnd   = Math.PI * 2.65;  // ~480° = complète le cercle
+          // Key points of the missing shape from your drawing
+          // Going clockwise from where it exits the photo
+          const shapePoints = [
+            { x: -0.05, y:  0.48 },  // 1. exits photo top-left
+            { x: -0.14, y:  0.62 },  // 2. upper-left peak
+            { x:  0.08, y:  0.70 },  // 3. top peak
+            { x:  0.32, y:  0.58 },  // 4. upper-right
+            { x:  0.46, y:  0.26 },  // 5. right bulge
+            { x:  0.48, y: -0.05 },  // 6. lower tip
+            { x:  0.42, y: -0.18 },  // 7. re-enters photo right
+          ];
 
-          const arcLength = this.arcEnd - this.arcStart;
+          // Palette matching the pigment
+          const blues = [
+            '#0d2a45', '#1a3a5c', '#2a5a8c',
+            '#163854', '#0a1f33', '#c8dff0', '#7aadd4'
+          ];
 
-          // Palette: bleu-noir du pigment laque
-          const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#163854', '#0a1f33', '#c8dff0', '#7aadd4'];
+          // Fill the interior of the shape with random points
+          // Use bounding box + point-in-polygon test
+          const minX = Math.min(...shapePoints.map(p => p.x));
+          const maxX = Math.max(...shapePoints.map(p => p.x));
+          const minY = Math.min(...shapePoints.map(p => p.y));
+          const maxY = Math.max(...shapePoints.map(p => p.y));
 
-          for (let i = 0; i < count; i++) {
+          // Point-in-polygon test (ray casting)
+          function inShape(px, py) {
+            let inside = false;
+            const pts = shapePoints;
+            for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+              const xi = pts[i].x, yi = pts[i].y;
+              const xj = pts[j].x, yj = pts[j].y;
+              const intersect = ((yi > py) !== (yj > py))
+                && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+              if (intersect) inside = !inside;
+            }
+            return inside;
+          }
+
+          // Also add particles along the boundary (the edge/outline)
+          const boundaryCount = 300;
+          const interiorCount = count - boundaryCount;
+
+          // Boundary particles: evenly spaced along the outline
+          for (let i = 0; i < boundaryCount; i++) {
             const dot = document.createElement('a-sphere');
+            const t = i / boundaryCount;
 
-            // Position fixe le long de l'arc manquant
-            const t = i / count;  // 0 = début de l'arc, 1 = fin
-            const angle = this.arcStart + t * arcLength;
+            // Interpolate along shape points
+            const totalSegs = shapePoints.length - 1;
+            const seg = t * totalSegs;
+            const segIdx = Math.floor(seg);
+            const segT = seg - segIdx;
+            const a = shapePoints[Math.min(segIdx, totalSegs - 1)];
+            const b = shapePoints[Math.min(segIdx + 1, totalSegs)];
+            const x = a.x + (b.x - a.x) * segT + (Math.random() - 0.5) * 0.025;
+            const y = a.y + (b.y - a.y) * segT + (Math.random() - 0.5) * 0.025;
+            const z = 0.04 + Math.random() * 0.07;
 
-            // Rayon légèrement irrégulier — texture naturelle
-            const radialJitter = (Math.random() - 0.5) * 0.055;
-            const r = 0.30 + radialJitter;
-
-            const x = this.cx + r * Math.cos(angle);
-            const y = this.cy + r * Math.sin(angle);
-
-            // Légère variation en Z — certaines particules flottent plus
-            const zOffset = 0.01 + Math.random() * 0.06;
-
-            const radius = 0.003 + Math.random() * 0.006;
-
-            // Couleur: plus foncé près des extrémités, plus clair au milieu
-            const midness = Math.sin(t * Math.PI);
-            const colorIndex = Math.floor(midness * 4 + Math.random() * 2);
-            const color = blues[Math.min(colorIndex, blues.length - 1)];
+            const color = blues[Math.floor(Math.random() * blues.length)];
+            const radius = 0.003 + Math.random() * 0.005;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
             dot.setAttribute('material', 'transparent: true; opacity: 0; shader: flat');
-            dot.setAttribute('position', `${x} ${y} ${zOffset}`);
+            dot.setAttribute('position', `${x} ${y} ${z}`);
             el.appendChild(dot);
 
-            this.particles.push({
-              el: dot,
-              t,           // position normalisée 0→1 le long de l'arc
-              x, y, zOffset,
-              ready: false
-            });
+            this.particles.push({ el: dot, t, ready: false });
+          }
+
+          // Interior particles: random points inside the shape
+          let placed = 0;
+          let attempts = 0;
+          while (placed < interiorCount && attempts < interiorCount * 20) {
+            attempts++;
+            const x = minX + Math.random() * (maxX - minX);
+            const y = minY + Math.random() * (maxY - minY);
+            if (!inShape(x, y)) continue;
+
+            const dot = document.createElement('a-sphere');
+            const z = 0.02 + Math.random() * 0.09;
+
+            // t based on distance from photo edge (left/bottom = appears later)
+            const t = (x - minX) / (maxX - minX) * 0.5
+                    + (y - minY) / (maxY - minY) * 0.5;
+
+            const color = blues[Math.floor(Math.random() * blues.length)];
+            const radius = 0.002 + Math.random() * 0.005;
+
+            dot.setAttribute('radius', radius);
+            dot.setAttribute('color', color);
+            dot.setAttribute('material', 'transparent: true; opacity: 0; shader: flat');
+            dot.setAttribute('position', `${x} ${y} ${z}`);
+            el.appendChild(dot);
+
+            this.particles.push({ el: dot, t, ready: false });
+            placed++;
           }
         },
 
         tick: function(t, dt) {
           this.time += dt * 0.001;
-
-          // Position dans le cycle
           const cycleT = this.time % this.cycleDuration;
 
-          const buildEnd  = this.buildDuration;
-          const holdEnd   = buildEnd + this.holdDuration;
-          const fadeEnd   = holdEnd + this.fadeDuration;
+          const buildEnd = this.buildDuration;
+          const holdEnd  = buildEnd + this.holdDuration;
+          const fadeEnd  = holdEnd + this.fadeDuration;
 
           this.particles.forEach(p => {
             if (!p.ready) {
@@ -93,32 +138,27 @@
             let opacity = 0;
 
             if (cycleT < buildEnd) {
-              // PHASE BUILD: le front avance le long de l'arc
-              // La particule à t=0 apparaît en premier, t=1 en dernier
-              const buildFront = cycleT / buildEnd; // 0→1
-              if (p.t <= buildFront) {
-                // Fondu d'apparition sur une petite fenêtre derrière le front
-                const fadeIn = Math.min((buildFront - p.t) / 0.08, 1.0);
-                opacity = fadeIn * 0.88;
+              // BUILD: front sweeps across shape, t=0 appears first
+              const front = cycleT / buildEnd;
+              if (p.t <= front) {
+                const fadeIn = Math.min((front - p.t) / 0.07, 1.0);
+                opacity = fadeIn * 0.85;
               }
 
             } else if (cycleT < holdEnd) {
-              // PHASE HOLD: tout visible
-              opacity = 0.88;
+              opacity = 0.85;
 
             } else if (cycleT < fadeEnd) {
-              // PHASE DISSOLVE: disparaît dans l'ordre inverse
-              const dissolveFront = (cycleT - holdEnd) / this.fadeDuration; // 0→1
-              const dissolvePos = 1 - p.t; // t=1 disparaît en premier
+              // DISSOLVE: disappears from right/bottom first
+              const dissolveFront = (cycleT - holdEnd) / this.fadeDuration;
+              const dissolvePos = 1 - p.t;
               if (dissolvePos <= dissolveFront) {
-                const fadeOut = Math.min((dissolveFront - dissolvePos) / 0.08, 1.0);
-                opacity = (1 - fadeOut) * 0.88;
+                const fadeOut = Math.min((dissolveFront - dissolvePos) / 0.07, 1.0);
+                opacity = (1 - fadeOut) * 0.85;
               } else {
-                opacity = 0.88;
+                opacity = 0.85;
               }
-
             }
-            // PHASE PAUSE: opacity reste 0
 
             const mesh = p.el.getObject3D('mesh');
             if (mesh && mesh.material) mesh.material.opacity = opacity;
@@ -138,12 +178,9 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-entity arc-formation></a-entity>
+        <a-entity shape-formation></a-entity>
       </a-entity>
 
-    </a-scene>
-  </body>
-</html>
     </a-scene>
   </body>
 </html>
