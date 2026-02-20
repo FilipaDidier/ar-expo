@@ -5,47 +5,45 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-
-      // LAYER 1: particles drifting from cracked interior toward the rim
-      AFRAME.registerComponent('pigment-drift', {
+      AFRAME.registerComponent('ink-comet', {
         init: function () {
           this.particles = [];
           const el = this.el;
-          const count = 300;
+          const count = 800;
+          const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854', '#0a1f33'];
 
-          // Circle center and radius
-          this.cx = 0.18;
-          this.cy = 0.22;
-          this.rimRadius = 0.30;
+          // RED mark: upper right dense blue blob
+          this.exitX  =  0.12;
+          this.exitY  =  0.22;
+
+          // GREEN mark: left middle blue zone
+          this.enterX = -0.22;
+          this.enterY =  0.08;
+
+          // Depth toward viewer at peak
+          this.maxZ = 1.2;
+
+          // Comet occupies 38% of the loop
+          // Front arc = 50% of loop
+          // So head and tail are NEVER both at painting surface simultaneously
+          this.streamLength = 0.38;
 
           for (let i = 0; i < count; i++) {
             const dot = document.createElement('a-sphere');
 
-            // Spawn randomly within the dark interior
-            // Use polar coords to stay within circle
-            const spawnR = 0.04 + Math.random() * 0.18;
-            const spawnAngle = Math.random() * Math.PI * 2;
-            const startX = this.cx + spawnR * Math.cos(spawnAngle);
-            const startY = this.cy + spawnR * Math.sin(spawnAngle);
+            // Smaller particles
+            const radius = 0.0015 + Math.random() * 0.0025;
+            const color  = blues[Math.floor(Math.random() * blues.length)];
 
-            // Travel toward the rim in same direction
-            const targetR = this.rimRadius * (0.85 + Math.random() * 0.15);
-            const endX = this.cx + targetR * Math.cos(spawnAngle);
-            const endY = this.cy + targetR * Math.sin(spawnAngle);
+            const baseT = (i / count) * this.streamLength;
+            const n = baseT / this.streamLength; // 0=head, 1=tail
 
-            // Color: dark at center, lighter at rim
-            const darkness = Math.floor(spawnR / this.rimRadius * 60);
-            const r = darkness;
-            const g = darkness + 20;
-            const b = darkness + 80;
-            const color = `rgb(${r},${g},${b})`;
-
-            const radius = 0.003 + Math.random() * 0.005;
-
-            // Journey duration: slow, 4-9 seconds per trip
-            const duration = 4.0 + Math.random() * 5.0;
-            // Stagger start
-            const progress = Math.random();
+            // Jitter: FIXED, calculated once, never changes — eliminates trembling
+            // Wider in middle of stream, tighter at head and tail
+            const envelope = Math.sin(n * Math.PI);
+            const spread = 0.015 + envelope * 0.055;
+            const jitterX = (Math.random() - 0.5) * spread;
+            const jitterY = (Math.random() - 0.5) * spread * 0.5;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
@@ -54,112 +52,41 @@
 
             this.particles.push({
               el: dot,
-              startX, startY,
-              endX, endY,
-              duration,
-              progress,
-              ready: false
-            });
-          }
-        },
-
-        tick: function(t, dt) {
-          const dtSec = dt * 0.001;
-
-          this.particles.forEach(p => {
-            if (!p.ready) {
-              if (!p.el.object3D) return;
-              p.ready = true;
-            }
-
-            p.progress += dtSec / p.duration;
-            if (p.progress > 1) p.progress -= 1;
-
-            const prog = p.progress;
-
-            // Eased motion — starts slow, arrives gently
-            const eased = prog < 0.5
-              ? 2 * prog * prog
-              : 1 - Math.pow(-2 * prog + 2, 2) / 2;
-
-            const x = p.startX + (p.endX - p.startX) * eased;
-            const y = p.startY + (p.endY - p.startY) * eased;
-
-            // Rise gently toward viewer as they travel outward
-            const z = 0.12 * Math.sin(prog * Math.PI);
-
-            p.el.object3D.position.set(x, y, z);
-
-            // Fade in at start, fade out at end
-            let opacity;
-            if (prog < 0.12) opacity = prog / 0.12;
-            else if (prog > 0.82) opacity = (1 - prog) / 0.18;
-            else opacity = 1.0;
-            opacity *= 0.75;
-
-            const mesh = p.el.getObject3D('mesh');
-            if (mesh && mesh.material) mesh.material.opacity = opacity;
-          });
-        }
-      });
-
-      // LAYER 2: continuous flow along the circular rim
-      AFRAME.registerComponent('rim-flow', {
-        init: function () {
-          this.particles = [];
-          const el = this.el;
-          const count = 500;
-
-          // Same circle
-          this.cx = 0.18;
-          this.cy = 0.22;
-          this.rimRadius = 0.30;
-
-          // Only the visible arc: lower-left portion of the rim
-          // In radians: from about 120° to 300° (the arc visible in the photo)
-          this.arcStart = Math.PI * 0.65;
-          this.arcEnd   = Math.PI * 1.95;
-          this.arcLength = this.arcEnd - this.arcStart;
-
-          // Stream length: 55% of the arc visible at once
-          this.streamFraction = 0.55;
-
-          for (let i = 0; i < count; i++) {
-            const dot = document.createElement('a-sphere');
-
-            // Distribute across stream
-            const baseT = (i / count) * this.streamFraction;
-            const n = baseT / this.streamFraction; // 0=head 1=tail
-
-            // Slightly irregular radius per particle — hugs the rim closely
-            const radialJitter = (Math.random() - 0.5) * 0.04;
-            const heightJitter = (Math.random() - 0.5) * 0.02;
-
-            // Color: bright blue-white, the lace edge color
-            const blues = ['#c8dff0', '#a0c4e0', '#7aadd4', '#4a7fa5', '#2a5a8c'];
-            const color = blues[Math.floor(Math.random() * blues.length)];
-
-            const radius = 0.002 + Math.random() * 0.004;
-
-            dot.setAttribute('radius', radius);
-            dot.setAttribute('color', color);
-            dot.setAttribute('material', 'transparent: true; opacity: 0; shader: flat');
-            el.appendChild(dot);
-
-            this.particles.push({
-              el: dot,
-              loopT: baseT + Math.random() * 0.1,
+              loopT: baseT + 0.05,
               baseN: n,
-              radialJitter,
-              heightJitter,
+              jitterX,
+              jitterY,
               ready: false
             });
           }
         },
 
-        tick: function(t, dt) {
-          // Full loop around visible arc every 8 seconds
-          const advance = (dt * 0.001) / 8.0;
+        getPos: function(loopT) {
+          const t = loopT % 1.0;
+
+          // Front arc: 0 → 0.5 (visible)
+          // Back arc: 0.5 → 1.0 (hidden behind painting)
+          if (t > 0.5) return null;
+
+          const n = t / 0.5; // 0→1 across front arc
+
+          // X: exit → enter with a LARGE bow downward-right at peak
+          // Large bowX makes the arc round instead of oval
+          const x = this.exitX + (this.enterX - this.exitX) * n
+                  + 0.35 * Math.sin(n * Math.PI); // large bow = rounder
+
+          // Y: exit → enter with downward arc (falling/gravity feel)
+          const y = this.exitY + (this.enterY - this.exitY) * n
+                  - 0.28 * Math.sin(n * Math.PI); // large downward bow
+
+          // Z: deep sine, zero at painting endpoints, peaks at center
+          const z = this.maxZ * Math.sin(n * Math.PI);
+
+          return { x, y, z, n };
+        },
+
+        tick: function (t, dt) {
+          const advance = (dt * 0.001) / 7.0;
 
           this.particles.forEach(p => {
             if (!p.ready) {
@@ -170,39 +97,35 @@
             p.loopT += advance;
             if (p.loopT >= 1.0) p.loopT -= 1.0;
 
-            // Visible only during stream fraction
-            if (p.loopT > this.streamFraction) {
+            const pos = this.getPos(p.loopT);
+
+            if (!pos) {
               p.el.object3D.position.set(0, 0, -2);
               const mesh = p.el.getObject3D('mesh');
               if (mesh && mesh.material) mesh.material.opacity = 0;
               return;
             }
 
-            // Position along the arc
-            const arcT = (p.loopT / this.streamFraction);
-            const angle = this.arcStart + arcT * this.arcLength;
-            const r = this.rimRadius + p.radialJitter;
+            p.el.object3D.position.set(
+              pos.x + p.jitterX,
+              pos.y + p.jitterY,
+              pos.z
+            );
 
-            const x = this.cx + r * Math.cos(angle);
-            const y = this.cy + r * Math.sin(angle);
-            // Hover just above the surface, rising slightly at peak of arc
-            const z = 0.06 + Math.sin(arcT * Math.PI) * 0.10 + p.heightJitter;
+            // Opacity: fades only near z=0 (painting surface)
+            // Stays fully bright throughout all of space
+            const zFade = Math.min(pos.z / 0.08, 1.0);
 
-            p.el.object3D.position.set(x, y, z);
-
-            // Opacity: fade in at head, fade out at tail
-            const headFade = Math.min(arcT / 0.05, 1.0);
-            const tailFade = Math.min((1 - arcT) / 0.05, 1.0);
-            const cometDim = 1 - Math.pow(p.baseN, 0.5) * 0.45;
+            // Comet dimming: head (baseN=0) bright, tail (baseN=1) dimmer
+            const cometDim = 1 - Math.pow(p.baseN, 0.6) * 0.55;
 
             const mesh = p.el.getObject3D('mesh');
             if (mesh && mesh.material) {
-              mesh.material.opacity = headFade * tailFade * cometDim * 0.90;
+              mesh.material.opacity = zFade * cometDim * 0.90;
             }
           });
         }
       });
-
     </script>
   </head>
   <body style="margin: 0; overflow: hidden;">
@@ -216,8 +139,7 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-entity pigment-drift></a-entity>
-        <a-entity rim-flow></a-entity>
+        <a-entity ink-comet></a-entity>
       </a-entity>
 
     </a-scene>
