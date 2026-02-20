@@ -16,25 +16,16 @@
           for (let i = 0; i < count; i++) {
             const shard = document.createElement('a-plane');
 
-            // Distribute across the blue region of the painting
-            const x = (Math.random() - 0.5) * 0.5;
-            const y = (Math.random() - 0.5) * 0.4;
-
+            const x = (Math.random() - 0.5) * 0.45;
+            const y = (Math.random() - 0.5) * 0.38;
             const w = 0.005 + Math.random() * 0.014;
-            const h = w * (0.5 + Math.random() * 3);
+            const h = w * (1 + Math.random() * 3);
             const color = blues[Math.floor(Math.random() * blues.length)];
-            const baseOpacity = 0.5 + Math.random() * 0.4;
-            const phaseOffset = Math.random() * Math.PI * 2;
-            const waveFreq = 0.8 + Math.random() * 1.2;
-            const waveAmp = 0.06 + Math.random() * 0.12; // how far toward viewer
-            const sway = 0.015 + Math.random() * 0.025;  // side sway
-            const tiltSpeed = 0.3 + Math.random() * 0.7;
-            const baseRot = Math.random() * 360;
 
             shard.setAttribute('width', w);
             shard.setAttribute('height', h);
             shard.setAttribute('color', color);
-            shard.setAttribute('material', `transparent: true; opacity: ${baseOpacity}; shader: flat; side: double`);
+            shard.setAttribute('material', 'transparent: true; opacity: 0.8; shader: flat; side: double');
             shard.setAttribute('position', `${x} ${y} 0`);
 
             el.appendChild(shard);
@@ -43,36 +34,44 @@
               el: shard,
               baseX: x,
               baseY: y,
-              phaseOffset,
-              waveFreq,
-              waveAmp,
-              sway,
-              tiltSpeed,
-              baseRot,
-              baseOpacity
+              phase: Math.random() * Math.PI * 2,
+              freq:  0.6 + Math.random() * 1.0,
+              ampZ:  0.08 + Math.random() * 0.18,
+              ampX:  0.02 + Math.random() * 0.04,
+              ampY:  0.01 + Math.random() * 0.03,
+              tilt:  Math.random() * 40 - 20,
+              ready: false
             });
           }
         },
 
-        tick: function (t, dt) {
-          this.time += dt * 0.001; // convert to seconds
-          const T = this.time;
+        tick: function (t) {
+          const T = t * 0.001;
 
           this.particles.forEach(p => {
-            const wave = Math.sin(T * p.waveFreq + p.phaseOffset);
-            const wave2 = Math.cos(T * p.waveFreq * 0.7 + p.phaseOffset);
+            // Wait until the mesh is actually in the scene
+            if (!p.ready) {
+              if (!p.el.object3D) return;
+              p.ready = true;
+            }
 
-            const z = p.waveAmp * (wave + 1) * 0.5;         // 0 to waveAmp, always positive (toward viewer)
-            const x = p.baseX + wave2 * p.sway;
-            const y = p.baseY + wave * p.sway * 0.5;
-            const rotZ = p.baseRot + wave * 25 * p.tiltSpeed;
-            const rotX = wave2 * 15;
+            const obj = p.el.object3D;
+            const s = Math.sin(T * p.freq + p.phase);
+            const c = Math.cos(T * p.freq * 0.7 + p.phase);
 
-            const opacity = p.baseOpacity * (0.4 + 0.6 * ((wave + 1) * 0.5));
+            // Move in Z (toward viewer and back), X, Y
+            obj.position.set(
+              p.baseX + c * p.ampX,
+              p.baseY + s * p.ampY,
+              p.ampZ * (s + 1) * 0.5   // always 0 → ampZ, surges toward viewer
+            );
 
-            p.el.setAttribute('position', `${x} ${y} ${z}`);
-            p.el.setAttribute('rotation', `${rotX} 0 ${rotZ}`);
-            p.el.object3D.material && (p.el.object3D.material.opacity = opacity);
+            // Tilt as it moves
+            obj.rotation.set(
+              c * 0.3,
+              s * 0.2,
+              (p.tilt + s * 25) * Math.PI / 180
+            );
           });
         }
       });
