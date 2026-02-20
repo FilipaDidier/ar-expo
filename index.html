@@ -8,55 +8,52 @@
       AFRAME.registerComponent('ink-wave', {
         init: function () {
           this.particles = [];
+          this.time = 0;
           const el = this.el;
-          const count = 200;
-          const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854', '#1e4d6b', '#5b8fad'];
+          const count = 300;
+          const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854'];
 
           for (let i = 0; i < count; i++) {
             const dot = document.createElement('a-sphere');
 
-            // Spread across the blue region
-            const x = (Math.random() - 0.55) * 0.52;
-            const y = (Math.random() - 0.3)  * 0.42;
+            // Concentrate in the dense blue area (upper-left of painting)
+            const x = -0.05 + (Math.random() - 0.5) * 0.38;
+            const y =  0.05 + (Math.random() - 0.5) * 0.32;
 
-            const radius = 0.002 + Math.random() * 0.005;
+            const radius = 0.0025 + Math.random() * 0.004;
             const color  = blues[Math.floor(Math.random() * blues.length)];
 
-            // Wave phase based on X position → wave travels left to right
-            // Plus random offset so it doesn't look too uniform
-            const wavePhase = (x + 0.26) / 0.52 * Math.PI * 2 + (Math.random() - 0.5) * 1.2;
+            // Tiny phase offset — just enough to create a ripple, not independence
+            // Based on position so the wave travels diagonally across the group
+            const ripple = (x * 1.5 - y * 1.0) * 0.4;
 
-            // Orbit size — how far toward viewer and how much Y arc
-            const orbitZ = 0.18 + Math.random() * 0.22;
-            const orbitY = 0.04 + Math.random() * 0.08;
-
-            // Speed variation
-            const speed  = 1.2 + Math.random() * 1.6; // seconds per orbit
+            // Very small random jitter so it doesn't look like a grid
+            const jitter = (Math.random() - 0.5) * 0.15;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
             dot.setAttribute('material', 'transparent: true; opacity: 0; shader: flat');
             dot.setAttribute('position', `${x} ${y} 0`);
-
             el.appendChild(dot);
 
             this.particles.push({
               el: dot,
               baseX: x,
               baseY: y,
-              wavePhase,
-              orbitZ,
-              orbitY,
-              speed,
-              // stagger start so they're already mid-journey
-              progress: Math.random(),
+              phase: ripple + jitter,   // very small individual offset
+              orbitZ: 0.25 + Math.random() * 0.08,
               ready: false
             });
           }
         },
 
         tick: function (t, dt) {
-          const dtSec = dt * 0.001;
+          this.time += dt * 0.001;
+          const T = this.time;
+
+          // ONE global angle drives the whole group
+          // Full loop every 4 seconds
+          const globalAngle = T * (Math.PI * 2 / 4.0);
 
           this.particles.forEach(p => {
             if (!p.ready) {
@@ -64,28 +61,26 @@
               p.ready = true;
             }
 
-            // Advance progress 0→1, loop
-            p.progress += dtSec / p.speed;
-            if (p.progress > 1) p.progress -= 1;
+            // Each particle's angle = global + tiny personal ripple
+            const angle = globalAngle + p.phase;
 
-            const angle = p.progress * Math.PI * 2 + p.wavePhase;
-
-            // Circular orbit in Z:
-            // z goes 0 (surface) → orbitZ (toward viewer) → 0 → -orbitZ (behind painting) → 0
-            // We only show particles when z >= 0 (in front of painting)
+            // Z: sine gives 0 at surface → max toward viewer → 0 → behind → repeat
             const z = p.orbitZ * Math.sin(angle);
-            const yArc = p.orbitY * (1 - Math.cos(angle)) * 0.5;
+
+            // Slight downward arc as the wave comes toward viewer (diagonal feel)
+            const yDrop = z > 0 ? -z * 0.25 : 0;
 
             const obj = p.el.object3D;
-            obj.position.set(p.baseX, p.baseY + yArc, Math.max(z, 0));
+            obj.position.set(
+              p.baseX,
+              p.baseY + yDrop,
+              Math.max(z, 0)
+            );
 
-            // Opacity: visible only when in front of painting (z > 0)
-            // Fades in as it emerges, fades out as it returns
+            // Opacity: bright when surging toward viewer, invisible when behind painting
             let opacity = 0;
             if (z > 0) {
-              // z normalized 0→1→0 during front half of orbit
-              const norm = z / p.orbitZ;
-              opacity = Math.sin(norm * Math.PI) * 0.9;
+              opacity = Math.sin((z / p.orbitZ) * Math.PI) * 0.92;
             }
 
             const mesh = p.el.getObject3D('mesh');
