@@ -5,55 +5,64 @@
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <script>
-      AFRAME.registerComponent('ink-wave', {
+      AFRAME.registerComponent('ink-stream', {
         init: function () {
           this.particles = [];
           this.time = 0;
           const el = this.el;
-          const count = 300;
+          const count = 500;
           const blues = ['#0d2a45', '#1a3a5c', '#2a5a8c', '#4a7fa5', '#163854'];
+
+          // PATH: three points defining the arc
+          // A = start on painting (dense blue area, upper-left)
+          // B = farthest point toward viewer (lower, closer)
+          // C = return point on painting (same blue zone)
+          this.A = { x: -0.13, y:  0.10, z: 0.0  };
+          this.B = { x: -0.02, y: -0.06, z: 0.40  };
+          this.C = { x: -0.13, y:  0.10, z: 0.0  };
 
           for (let i = 0; i < count; i++) {
             const dot = document.createElement('a-sphere');
 
-            // Concentrate in the dense blue area (upper-left of painting)
-            const x = -0.05 + (Math.random() - 0.5) * 0.38;
-            const y =  0.05 + (Math.random() - 0.5) * 0.32;
-
-            const radius = 0.0025 + Math.random() * 0.004;
+            const radius = 0.002 + Math.random() * 0.003;
             const color  = blues[Math.floor(Math.random() * blues.length)];
 
-            // Tiny phase offset — just enough to create a ripple, not independence
-            // Based on position so the wave travels diagonally across the group
-            const ripple = (x * 1.5 - y * 1.0) * 0.4;
+            // Spread particles evenly along the path at start
+            const progress = i / count;
 
-            // Very small random jitter so it doesn't look like a grid
-            const jitter = (Math.random() - 0.5) * 0.15;
+            // Tiny perpendicular jitter to give the stream width
+            const jitterX = (Math.random() - 0.5) * 0.04;
+            const jitterY = (Math.random() - 0.5) * 0.04;
 
             dot.setAttribute('radius', radius);
             dot.setAttribute('color', color);
             dot.setAttribute('material', 'transparent: true; opacity: 0; shader: flat');
-            dot.setAttribute('position', `${x} ${y} 0`);
             el.appendChild(dot);
 
             this.particles.push({
               el: dot,
-              baseX: x,
-              baseY: y,
-              phase: ripple + jitter,   // very small individual offset
-              orbitZ: 0.25 + Math.random() * 0.08,
+              progress,
+              jitterX,
+              jitterY,
+              speed: 0.18 + Math.random() * 0.04, // very close speeds = moves as one body
               ready: false
             });
           }
         },
 
+        // Quadratic bezier between three points
+        bezier: function(A, B, C, t) {
+          const u = 1 - t;
+          return {
+            x: u * u * A.x + 2 * u * t * B.x + t * t * C.x,
+            y: u * u * A.y + 2 * u * t * B.y + t * t * C.y,
+            z: u * u * A.z + 2 * u * t * B.z + t * t * C.z,
+          };
+        },
+
         tick: function (t, dt) {
           this.time += dt * 0.001;
-          const T = this.time;
-
-          // ONE global angle drives the whole group
-          // Full loop every 4 seconds
-          const globalAngle = T * (Math.PI * 2 / 4.0);
+          const A = this.A, B = this.B, C = this.C;
 
           this.particles.forEach(p => {
             if (!p.ready) {
@@ -61,27 +70,29 @@
               p.ready = true;
             }
 
-            // Each particle's angle = global + tiny personal ripple
-            const angle = globalAngle + p.phase;
+            // Advance along path, loop
+            p.progress += p.speed * 0.001 * dt * 0.001 * 60;
+            if (p.progress > 1) p.progress -= 1;
 
-            // Z: sine gives 0 at surface → max toward viewer → 0 → behind → repeat
-            const z = p.orbitZ * Math.sin(angle);
+            const pos = this.bezier(A, B, C, p.progress);
 
-            // Slight downward arc as the wave comes toward viewer (diagonal feel)
-            const yDrop = z > 0 ? -z * 0.25 : 0;
-
-            const obj = p.el.object3D;
-            obj.position.set(
-              p.baseX,
-              p.baseY + yDrop,
-              Math.max(z, 0)
+            p.el.object3D.position.set(
+              pos.x + p.jitterX,
+              pos.y + p.jitterY,
+              pos.z
             );
 
-            // Opacity: bright when surging toward viewer, invisible when behind painting
-            let opacity = 0;
-            if (z > 0) {
-              opacity = Math.sin((z / p.orbitZ) * Math.PI) * 0.92;
+            // Opacity: fade in leaving painting, fade out returning
+            let opacity;
+            const prog = p.progress;
+            if (prog < 0.08) {
+              opacity = prog / 0.08;
+            } else if (prog > 0.88) {
+              opacity = (1 - prog) / 0.12;
+            } else {
+              opacity = 1.0;
             }
+            opacity *= 0.9;
 
             const mesh = p.el.getObject3D('mesh');
             if (mesh && mesh.material) {
@@ -103,7 +114,7 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-entity ink-wave></a-entity>
+        <a-entity ink-stream></a-entity>
       </a-entity>
 
     </a-scene>
