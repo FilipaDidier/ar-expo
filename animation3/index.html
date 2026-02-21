@@ -7,11 +7,10 @@
     <script>
       AFRAME.registerComponent('branch-growth', {
         init: function () {
-          this.particles = [];
+          this.segments = [];
           this.time = 0;
           const el = this.el;
 
-          // Timings
           this.buildDuration = 5.0;
           this.holdDuration  = 3.0;
           this.fadeDuration  = 3.0;
@@ -19,162 +18,146 @@
           this.cycleDuration = this.buildDuration + this.holdDuration
                              + this.fadeDuration  + this.pauseDuration;
 
-          // Blue-indigo palette matching the painting
-          const blues = [
-            '#0d2a45', '#1a3a5c', '#2a5a8c',
-            '#163854', '#1e4d6b', '#4a7fa5'
-          ];
+          // Light blue-grey — matches the pale washed-out color of the painting
+          const blues = ['#7aacc8', '#8ab8d0', '#6a9ab8', '#5a8aaa', '#90b8cc'];
 
-          // Each main branch: start point (on painted tip) + control point + end point
-          // End points are beyond the frame (radius > 0.42) and rise in Z
-          // Painting center approx (0.0, 0.05)
-          const branches = [
-            // Top-left branch
-            {
-              start: { x: -0.08, y: 0.20, z: 0.0 },
-              ctrl:  { x: -0.18, y: 0.32, z: 0.08 },
-              end:   { x: -0.28, y: 0.48, z: 0.18 },
-              subs: [
-                { tFork: 0.45, ctrl: { x: -0.24, y: 0.30, z: 0.08 }, end: { x: -0.34, y: 0.28, z: 0.14 } },
-                { tFork: 0.70, ctrl: { x: -0.20, y: 0.44, z: 0.12 }, end: { x: -0.18, y: 0.54, z: 0.16 } },
-              ]
-            },
-            // Top-center branch
-            {
-              start: { x: 0.02, y: 0.22, z: 0.0 },
-              ctrl:  { x: 0.04, y: 0.36, z: 0.08 },
-              end:   { x: 0.05, y: 0.54, z: 0.20 },
-              subs: [
-                { tFork: 0.40, ctrl: { x: -0.06, y: 0.38, z: 0.10 }, end: { x: -0.14, y: 0.44, z: 0.15 } },
-                { tFork: 0.65, ctrl: { x:  0.14, y: 0.42, z: 0.10 }, end: { x:  0.20, y: 0.50, z: 0.16 } },
-              ]
-            },
-            // Top-right branch
-            {
-              start: { x: 0.13, y: 0.18, z: 0.0 },
-              ctrl:  { x: 0.24, y: 0.30, z: 0.08 },
-              end:   { x: 0.34, y: 0.44, z: 0.18 },
-              subs: [
-                { tFork: 0.50, ctrl: { x: 0.30, y: 0.24, z: 0.08 }, end: { x: 0.42, y: 0.22, z: 0.14 } },
-                { tFork: 0.72, ctrl: { x: 0.28, y: 0.40, z: 0.12 }, end: { x: 0.36, y: 0.52, z: 0.16 } },
-              ]
-            },
-            // Right branch
-            {
-              start: { x: 0.16, y: 0.04, z: 0.0 },
-              ctrl:  { x: 0.30, y: 0.06, z: 0.08 },
-              end:   { x: 0.48, y: 0.08, z: 0.20 },
-              subs: [
-                { tFork: 0.40, ctrl: { x: 0.28, y: 0.14, z: 0.08 }, end: { x: 0.38, y: 0.22, z: 0.14 } },
-                { tFork: 0.68, ctrl: { x: 0.38, y:-0.04, z: 0.10 }, end: { x: 0.50, y:-0.12, z: 0.15 } },
-              ]
-            },
-            // Bottom-right branch
-            {
-              start: { x: 0.10, y: -0.08, z: 0.0 },
-              ctrl:  { x: 0.22, y: -0.18, z: 0.08 },
-              end:   { x: 0.32, y: -0.34, z: 0.18 },
-              subs: [
-                { tFork: 0.45, ctrl: { x: 0.30, y:-0.12, z: 0.08 }, end: { x: 0.42, y:-0.10, z: 0.13 } },
-                { tFork: 0.70, ctrl: { x: 0.22, y:-0.30, z: 0.10 }, end: { x: 0.18, y:-0.42, z: 0.16 } },
-              ]
-            },
-            // Left branch
-            {
-              start: { x: -0.14, y: 0.02, z: 0.0 },
-              ctrl:  { x: -0.28, y: 0.04, z: 0.08 },
-              end:   { x: -0.46, y: 0.06, z: 0.20 },
-              subs: [
-                { tFork: 0.42, ctrl: { x:-0.26, y: 0.14, z: 0.08 }, end: { x:-0.36, y: 0.20, z: 0.14 } },
-                { tFork: 0.66, ctrl: { x:-0.34, y:-0.06, z: 0.10 }, end: { x:-0.46, y:-0.14, z: 0.15 } },
-              ]
-            },
-          ];
+          // Frame inner radius ≈ 0.26, outer ≈ 0.42
+          // Branches stay at z=0 until r>0.26, then rise
+          const frameInner = 0.26;
+          const cx = 0.0, cy = 0.05; // painting center
 
-          // Bezier helper
+          function getZ(x, y) {
+            const r = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+            if (r <= frameInner) return 0.01;
+            // Rise progressively after frame inner edge
+            return Math.min((r - frameInner) / 0.20 * 0.22, 0.22);
+          }
+
           function bezier(A, B, C, t) {
             const u = 1 - t;
             return {
               x: u*u*A.x + 2*u*t*B.x + t*t*C.x,
               y: u*u*A.y + 2*u*t*B.y + t*t*C.y,
-              z: u*u*A.z + 2*u*t*B.z + t*t*C.z,
             };
           }
 
-          const particlesPerBranch = 120;
-          const particlesPerSub    = 55;
+          // Branches: start from painted tips, end beyond frame
+          const branches = [
+            { start:{x:-0.06,y:0.18}, ctrl:{x:-0.16,y:0.34}, end:{x:-0.24,y:0.50},
+              subs:[
+                {tFork:0.50, ctrl:{x:-0.28,y:0.30}, end:{x:-0.40,y:0.28}},
+                {tFork:0.72, ctrl:{x:-0.16,y:0.46}, end:{x:-0.14,y:0.58}},
+              ]},
+            { start:{x:0.02,y:0.20}, ctrl:{x:0.02,y:0.38}, end:{x:0.02,y:0.56},
+              subs:[
+                {tFork:0.45, ctrl:{x:-0.10,y:0.36}, end:{x:-0.18,y:0.46}},
+                {tFork:0.68, ctrl:{x: 0.12,y:0.38}, end:{x: 0.20,y:0.50}},
+              ]},
+            { start:{x:0.12,y:0.16}, ctrl:{x:0.24,y:0.32}, end:{x:0.34,y:0.48},
+              subs:[
+                {tFork:0.48, ctrl:{x:0.30,y:0.22}, end:{x:0.44,y:0.20}},
+                {tFork:0.70, ctrl:{x:0.26,y:0.42}, end:{x:0.34,y:0.54}},
+              ]},
+            { start:{x:0.16,y:0.02}, ctrl:{x:0.32,y:0.02}, end:{x:0.50,y:0.02},
+              subs:[
+                {tFork:0.44, ctrl:{x:0.28,y:0.14}, end:{x:0.36,y:0.24}},
+                {tFork:0.68, ctrl:{x:0.36,y:-0.08}, end:{x:0.48,y:-0.16}},
+              ]},
+            { start:{x:0.10,y:-0.10}, ctrl:{x:0.22,y:-0.24}, end:{x:0.30,y:-0.40},
+              subs:[
+                {tFork:0.46, ctrl:{x:0.30,y:-0.14}, end:{x:0.44,y:-0.12}},
+                {tFork:0.68, ctrl:{x:0.20,y:-0.34}, end:{x:0.16,y:-0.48}},
+              ]},
+            { start:{x:-0.12,y:0.02}, ctrl:{x:-0.28,y:0.02}, end:{x:-0.48,y:0.02},
+              subs:[
+                {tFork:0.44, ctrl:{x:-0.24,y:0.16}, end:{x:-0.34,y:0.24}},
+                {tFork:0.66, ctrl:{x:-0.30,y:-0.10}, end:{x:-0.44,y:-0.18}},
+              ]},
+          ];
 
-          branches.forEach(branch => {
-            // Main branch particles
-            for (let i = 0; i < particlesPerBranch; i++) {
-              const dot = document.createElement('a-sphere');
-              const t = i / particlesPerBranch;
-              const pos = bezier(branch.start, branch.ctrl, branch.end, t);
+          const stepsPerBranch = 60;
+          const stepsPerSub    = 30;
 
-              const jx = (Math.random() - 0.5) * 0.012;
-              const jy = (Math.random() - 0.5) * 0.012;
-              const jz = (Math.random() - 0.5) * 0.008;
+          const buildSegments = (pts, tOffset, tScale) => {
+            for (let i = 0; i < pts.length - 1; i++) {
+              const A = pts[i];
+              const B = pts[i + 1];
 
-              // Taper: thick at base, thin at tip
-              const taper = 1 - t * 0.65;
-              const radius = (0.004 + Math.random() * 0.005) * taper;
+              const mx = (A.x + B.x) / 2;
+              const my = (A.y + B.y) / 2;
+              const mz = (A.z + B.z) / 2;
+
+              const dx = B.x - A.x;
+              const dy = B.y - A.y;
+              const dz = B.z - A.z;
+              const length = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+              if (length < 0.0001) return;
+
+              // Cylinder between A and B
+              const cyl = document.createElement('a-cylinder');
+              const radius = Math.max(0.003 - (tOffset + (i/pts.length)*tScale) * 0.002, 0.001);
               const color = blues[Math.floor(Math.random() * blues.length)];
 
-              dot.setAttribute('radius', radius);
-              dot.setAttribute('color', color);
-              dot.setAttribute('material', 'transparent: true; opacity: 0; shader: flat');
-              el.appendChild(dot);
+              cyl.setAttribute('radius', radius);
+              cyl.setAttribute('height', length);
+              cyl.setAttribute('color', color);
+              cyl.setAttribute('material', 'transparent: true; opacity: 0; shader: flat; side: double');
+              cyl.setAttribute('position', `${mx} ${my} ${mz}`);
 
-              this.particles.push({
-                el: dot,
-                x: pos.x + jx,
-                y: pos.y + jy,
-                z: pos.z + jz,
-                t,           // growth order: t=0 appears first
-                ready: false
+              // Orient cylinder along direction vector
+              // A-Frame cylinders are Y-up by default
+              const dirX = dx / length;
+              const dirY = dy / length;
+              const dirZ = dz / length;
+
+              // Rotation to align Y-axis with direction
+              const up = new THREE.Vector3(0, 1, 0);
+              const dir = new THREE.Vector3(dirX, dirY, dirZ);
+              const quaternion = new THREE.Quaternion();
+              quaternion.setFromUnitVectors(up, dir);
+              const euler = new THREE.Euler().setFromQuaternion(quaternion);
+
+              cyl.setAttribute('rotation', {
+                x: THREE.MathUtils.radToDeg(euler.x),
+                y: THREE.MathUtils.radToDeg(euler.y),
+                z: THREE.MathUtils.radToDeg(euler.z)
               });
+
+              el.appendChild(cyl);
+
+              // t: growth order 0→1
+              const segT = tOffset + (i / pts.length) * tScale;
+
+              this.segments.push({ el: cyl, t: segT, ready: false });
             }
+          };
+
+          branches.forEach(branch => {
+            // Build main branch point array
+            const pts = [];
+            for (let i = 0; i <= stepsPerBranch; i++) {
+              const t = i / stepsPerBranch;
+              const p = bezier(branch.start, branch.ctrl, branch.end, t);
+              pts.push({ x: p.x, y: p.y, z: getZ(p.x, p.y) });
+            }
+            buildSegments(pts, 0, 1.0);
 
             // Sub-branches
             branch.subs.forEach(sub => {
-              const forkPos = bezier(branch.start, branch.ctrl, branch.end, sub.tFork);
+              const forkXY = bezier(branch.start, branch.ctrl, branch.end, sub.tFork);
+              const forkPt = { x: forkXY.x, y: forkXY.y, z: getZ(forkXY.x, forkXY.y) };
 
-              for (let i = 0; i < particlesPerSub; i++) {
-                const dot = document.createElement('a-sphere');
-                const t = i / particlesPerSub;
-                const pos = bezier(forkPos, sub.ctrl, sub.end, t);
-
-                const jx = (Math.random() - 0.5) * 0.010;
-                const jy = (Math.random() - 0.5) * 0.010;
-                const jz = (Math.random() - 0.5) * 0.007;
-
-                const taper = 1 - t * 0.75;
-                const radius = (0.003 + Math.random() * 0.004) * taper;
-                const color = blues[Math.floor(Math.random() * blues.length)];
-
-                dot.setAttribute('radius', radius);
-                dot.setAttribute('color', color);
-                dot.setAttribute('material', 'transparent: true; opacity: 0; shader: flat');
-                el.appendChild(dot);
-
-                // Sub-branch growth starts when fork point is reached
-                // t=0 on sub = sub.tFork on main timeline
-                const globalT = sub.tFork + t * (1 - sub.tFork);
-
-                this.particles.push({
-                  el: dot,
-                  x: pos.x + jx,
-                  y: pos.y + jy,
-                  z: pos.z + jz,
-                  t: globalT,
-                  ready: false
-                });
+              const subPts = [forkPt];
+              for (let i = 1; i <= stepsPerSub; i++) {
+                const t = i / stepsPerSub;
+                const p = bezier(forkPt, sub.ctrl, sub.end, t);
+                subPts.push({ x: p.x, y: p.y, z: getZ(p.x, p.y) });
               }
+              // Sub starts growing when fork point is reached
+              buildSegments(subPts, sub.tFork, 1 - sub.tFork);
             });
           });
-
-          // Set all positions immediately (fixed, no tick movement)
-          // Tick only controls opacity
         },
 
         tick: function(t, dt) {
@@ -185,10 +168,9 @@
           const holdEnd  = buildEnd + this.holdDuration;
           const fadeEnd  = holdEnd  + this.fadeDuration;
 
-          this.particles.forEach(p => {
+          this.segments.forEach(p => {
             if (!p.ready) {
               if (!p.el.object3D) return;
-              p.el.object3D.position.set(p.x, p.y, p.z);
               p.ready = true;
             }
 
@@ -197,21 +179,17 @@
             if (cycleT < buildEnd) {
               const front = cycleT / buildEnd;
               if (p.t <= front) {
-                const fadeIn = Math.min((front - p.t) / 0.06, 1.0);
-                opacity = fadeIn * 0.88;
+                opacity = Math.min((front - p.t) / 0.06, 1.0) * 0.60;
               }
-
             } else if (cycleT < holdEnd) {
-              opacity = 0.88;
-
+              opacity = 0.60;
             } else if (cycleT < fadeEnd) {
               const dissolveFront = (cycleT - holdEnd) / this.fadeDuration;
               const dissolvePos = 1 - p.t;
               if (dissolvePos <= dissolveFront) {
-                const fadeOut = Math.min((dissolveFront - dissolvePos) / 0.06, 1.0);
-                opacity = (1 - fadeOut) * 0.88;
+                opacity = (1 - Math.min((dissolveFront - dissolvePos) / 0.06, 1.0)) * 0.60;
               } else {
-                opacity = 0.88;
+                opacity = 0.60;
               }
             }
 
