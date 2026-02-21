@@ -18,19 +18,15 @@
           this.cycleDuration = this.buildDuration + this.holdDuration
                              + this.fadeDuration  + this.pauseDuration;
 
-          // Light blue-grey — matches the pale washed-out color of the painting
           const blues = ['#7aacc8', '#8ab8d0', '#6a9ab8', '#5a8aaa', '#90b8cc'];
 
-          // Frame inner radius ≈ 0.26, outer ≈ 0.42
-          // Branches stay at z=0 until r>0.26, then rise
           const frameInner = 0.26;
-          const cx = 0.0, cy = 0.05; // painting center
+          const cx = 0.02, cy = 0.08;
 
           function getZ(x, y) {
             const r = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
-            if (r <= frameInner) return 0.01;
-            // Rise progressively after frame inner edge
-            return Math.min((r - frameInner) / 0.20 * 0.22, 0.22);
+            if (r <= frameInner) return 0.005;
+            return Math.min((r - frameInner) / 0.18 * 0.22, 0.22);
           }
 
           function bezier(A, B, C, t) {
@@ -41,100 +37,102 @@
             };
           }
 
-          // Branches: start from painted tips, end beyond frame
+          // Each branch: starts at red dot, ctrl bends outward, end beyond frame
+          // Direction = away from center (cx, cy)
           const branches = [
-            { start:{x:-0.06,y:0.18}, ctrl:{x:-0.16,y:0.34}, end:{x:-0.24,y:0.50},
+            // 1. far left tip → continues left-down
+            { start:{x:-0.12,y:0.16}, ctrl:{x:-0.22,y:0.10}, end:{x:-0.36,y:0.04},
+              subs:[{tFork:0.55, ctrl:{x:-0.24,y:0.18}, end:{x:-0.34,y:0.26}}]},
+
+            // 2. left cluster upper → continues upper-left
+            { start:{x:-0.08,y:0.22}, ctrl:{x:-0.18,y:0.32}, end:{x:-0.28,y:0.46},
+              subs:[{tFork:0.50, ctrl:{x:-0.22,y:0.24}, end:{x:-0.32,y:0.22}}]},
+
+            // 3. left cluster lower → continues left
+            { start:{x:-0.04,y:0.24}, ctrl:{x:-0.10,y:0.36}, end:{x:-0.14,y:0.52},
+              subs:[{tFork:0.55, ctrl:{x:-0.18,y:0.32}, end:{x:-0.28,y:0.36}}]},
+
+            // 4. center-left upper → continues up-left
+            { start:{x:0.00,y:0.26}, ctrl:{x:-0.04,y:0.38}, end:{x:-0.06,y:0.54},
+              subs:[{tFork:0.50, ctrl:{x:0.06,y:0.40}, end:{x:0.10,y:0.52}}]},
+
+            // 5. center top → continues straight up
+            { start:{x:0.04,y:0.28}, ctrl:{x:0.04,y:0.42}, end:{x:0.04,y:0.58},
               subs:[
-                {tFork:0.50, ctrl:{x:-0.28,y:0.30}, end:{x:-0.40,y:0.28}},
-                {tFork:0.72, ctrl:{x:-0.16,y:0.46}, end:{x:-0.14,y:0.58}},
+                {tFork:0.45, ctrl:{x:-0.06,y:0.42}, end:{x:-0.12,y:0.52}},
+                {tFork:0.65, ctrl:{x: 0.12,y:0.44}, end:{x: 0.18,y:0.54}},
               ]},
-            { start:{x:0.02,y:0.20}, ctrl:{x:0.02,y:0.38}, end:{x:0.02,y:0.56},
-              subs:[
-                {tFork:0.45, ctrl:{x:-0.10,y:0.36}, end:{x:-0.18,y:0.46}},
-                {tFork:0.68, ctrl:{x: 0.12,y:0.38}, end:{x: 0.20,y:0.50}},
-              ]},
-            { start:{x:0.12,y:0.16}, ctrl:{x:0.24,y:0.32}, end:{x:0.34,y:0.48},
-              subs:[
-                {tFork:0.48, ctrl:{x:0.30,y:0.22}, end:{x:0.44,y:0.20}},
-                {tFork:0.70, ctrl:{x:0.26,y:0.42}, end:{x:0.34,y:0.54}},
-              ]},
-            { start:{x:0.16,y:0.02}, ctrl:{x:0.32,y:0.02}, end:{x:0.50,y:0.02},
-              subs:[
-                {tFork:0.44, ctrl:{x:0.28,y:0.14}, end:{x:0.36,y:0.24}},
-                {tFork:0.68, ctrl:{x:0.36,y:-0.08}, end:{x:0.48,y:-0.16}},
-              ]},
-            { start:{x:0.10,y:-0.10}, ctrl:{x:0.22,y:-0.24}, end:{x:0.30,y:-0.40},
-              subs:[
-                {tFork:0.46, ctrl:{x:0.30,y:-0.14}, end:{x:0.44,y:-0.12}},
-                {tFork:0.68, ctrl:{x:0.20,y:-0.34}, end:{x:0.16,y:-0.48}},
-              ]},
-            { start:{x:-0.12,y:0.02}, ctrl:{x:-0.28,y:0.02}, end:{x:-0.48,y:0.02},
-              subs:[
-                {tFork:0.44, ctrl:{x:-0.24,y:0.16}, end:{x:-0.34,y:0.24}},
-                {tFork:0.66, ctrl:{x:-0.30,y:-0.10}, end:{x:-0.44,y:-0.18}},
-              ]},
+
+            // 6. center-right upper → continues up-right
+            { start:{x:0.08,y:0.24}, ctrl:{x:0.16,y:0.36}, end:{x:0.24,y:0.50},
+              subs:[{tFork:0.52, ctrl:{x:0.20,y:0.28}, end:{x:0.32,y:0.26}}]},
+
+            // 7. right cluster upper → continues upper-right
+            { start:{x:0.13,y:0.22}, ctrl:{x:0.24,y:0.32}, end:{x:0.36,y:0.44},
+              subs:[{tFork:0.50, ctrl:{x:0.28,y:0.20}, end:{x:0.42,y:0.18}}]},
+
+            // 8. right cluster mid → continues right
+            { start:{x:0.16,y:0.18}, ctrl:{x:0.28,y:0.20}, end:{x:0.46,y:0.22},
+              subs:[{tFork:0.55, ctrl:{x:0.30,y:0.10}, end:{x:0.44,y:0.08}}]},
+
+            // 9. right branch upper → continues right
+            { start:{x:0.20,y:0.12}, ctrl:{x:0.32,y:0.12}, end:{x:0.50,y:0.12},
+              subs:[{tFork:0.50, ctrl:{x:0.32,y:0.20}, end:{x:0.44,y:0.28}}]},
+
+            // 10. right branch mid → continues right-down
+            { start:{x:0.20,y:0.06}, ctrl:{x:0.32,y:0.04}, end:{x:0.50,y:0.02},
+              subs:[{tFork:0.55, ctrl:{x:0.32,y:-0.04}, end:{x:0.44,y:-0.10}}]},
+
+            // 11. right branch lower → continues right-down
+            { start:{x:0.18,y:0.02}, ctrl:{x:0.30,y:-0.04}, end:{x:0.46,y:-0.10},
+              subs:[{tFork:0.50, ctrl:{x:0.28,y:0.08}, end:{x:0.38,y:0.14}}]},
+
+            // 12. bottom-right tip → continues down-right
+            { start:{x:0.14,y:-0.02}, ctrl:{x:0.24,y:-0.10}, end:{x:0.36,y:-0.22},
+              subs:[{tFork:0.55, ctrl:{x:0.26,y:-0.04}, end:{x:0.38,y:0.02}}]},
           ];
 
-          const stepsPerBranch = 60;
-          const stepsPerSub    = 30;
+          const stepsPerBranch = 50;
+          const stepsPerSub    = 28;
 
-          const buildSegments = (pts, tOffset, tScale) => {
+          const buildSegments = (pts, tStart, tScale) => {
             for (let i = 0; i < pts.length - 1; i++) {
-              const A = pts[i];
-              const B = pts[i + 1];
+              const A = pts[i], B = pts[i+1];
+              const mx = (A.x+B.x)/2, my = (A.y+B.y)/2, mz = (A.z+B.z)/2;
+              const dx = B.x-A.x, dy = B.y-A.y, dz = B.z-A.z;
+              const length = Math.sqrt(dx*dx+dy*dy+dz*dz);
+              if (length < 0.0001) continue;
 
-              const mx = (A.x + B.x) / 2;
-              const my = (A.y + B.y) / 2;
-              const mz = (A.z + B.z) / 2;
-
-              const dx = B.x - A.x;
-              const dy = B.y - A.y;
-              const dz = B.z - A.z;
-              const length = Math.sqrt(dx*dx + dy*dy + dz*dz);
-
-              if (length < 0.0001) return;
-
-              // Cylinder between A and B
               const cyl = document.createElement('a-cylinder');
-              const radius = Math.max(0.003 - (tOffset + (i/pts.length)*tScale) * 0.002, 0.001);
+              const segT = tStart + (i / pts.length) * tScale;
+              const taper = Math.max(1 - segT * 0.7, 0.2);
+              const radius = 0.004 * taper;
               const color = blues[Math.floor(Math.random() * blues.length)];
 
               cyl.setAttribute('radius', radius);
               cyl.setAttribute('height', length);
               cyl.setAttribute('color', color);
+              cyl.setAttribute('segments-height', 1);
+              cyl.setAttribute('segments-radial', 5);
               cyl.setAttribute('material', 'transparent: true; opacity: 0; shader: flat; side: double');
               cyl.setAttribute('position', `${mx} ${my} ${mz}`);
 
-              // Orient cylinder along direction vector
-              // A-Frame cylinders are Y-up by default
-              const dirX = dx / length;
-              const dirY = dy / length;
-              const dirZ = dz / length;
-
-              // Rotation to align Y-axis with direction
-              const up = new THREE.Vector3(0, 1, 0);
-              const dir = new THREE.Vector3(dirX, dirY, dirZ);
-              const quaternion = new THREE.Quaternion();
-              quaternion.setFromUnitVectors(up, dir);
-              const euler = new THREE.Euler().setFromQuaternion(quaternion);
-
+              const up = new THREE.Vector3(0,1,0);
+              const dir = new THREE.Vector3(dx/length, dy/length, dz/length);
+              const q = new THREE.Quaternion().setFromUnitVectors(up, dir);
+              const e = new THREE.Euler().setFromQuaternion(q);
               cyl.setAttribute('rotation', {
-                x: THREE.MathUtils.radToDeg(euler.x),
-                y: THREE.MathUtils.radToDeg(euler.y),
-                z: THREE.MathUtils.radToDeg(euler.z)
+                x: THREE.MathUtils.radToDeg(e.x),
+                y: THREE.MathUtils.radToDeg(e.y),
+                z: THREE.MathUtils.radToDeg(e.z)
               });
 
               el.appendChild(cyl);
-
-              // t: growth order 0→1
-              const segT = tOffset + (i / pts.length) * tScale;
-
               this.segments.push({ el: cyl, t: segT, ready: false });
             }
           };
 
           branches.forEach(branch => {
-            // Build main branch point array
             const pts = [];
             for (let i = 0; i <= stepsPerBranch; i++) {
               const t = i / stepsPerBranch;
@@ -143,18 +141,15 @@
             }
             buildSegments(pts, 0, 1.0);
 
-            // Sub-branches
             branch.subs.forEach(sub => {
-              const forkXY = bezier(branch.start, branch.ctrl, branch.end, sub.tFork);
-              const forkPt = { x: forkXY.x, y: forkXY.y, z: getZ(forkXY.x, forkXY.y) };
-
-              const subPts = [forkPt];
+              const fXY = bezier(branch.start, branch.ctrl, branch.end, sub.tFork);
+              const fPt = { x: fXY.x, y: fXY.y, z: getZ(fXY.x, fXY.y) };
+              const subPts = [fPt];
               for (let i = 1; i <= stepsPerSub; i++) {
                 const t = i / stepsPerSub;
-                const p = bezier(forkPt, sub.ctrl, sub.end, t);
+                const p = bezier(fPt, sub.ctrl, sub.end, t);
                 subPts.push({ x: p.x, y: p.y, z: getZ(p.x, p.y) });
               }
-              // Sub starts growing when fork point is reached
               buildSegments(subPts, sub.tFork, 1 - sub.tFork);
             });
           });
@@ -163,7 +158,6 @@
         tick: function(t, dt) {
           this.time += dt * 0.001;
           const cycleT = this.time % this.cycleDuration;
-
           const buildEnd = this.buildDuration;
           const holdEnd  = buildEnd + this.holdDuration;
           const fadeEnd  = holdEnd  + this.fadeDuration;
@@ -175,22 +169,16 @@
             }
 
             let opacity = 0;
-
             if (cycleT < buildEnd) {
               const front = cycleT / buildEnd;
-              if (p.t <= front) {
-                opacity = Math.min((front - p.t) / 0.06, 1.0) * 0.60;
-              }
+              if (p.t <= front) opacity = Math.min((front - p.t) / 0.06, 1.0) * 0.55;
             } else if (cycleT < holdEnd) {
-              opacity = 0.60;
+              opacity = 0.55;
             } else if (cycleT < fadeEnd) {
-              const dissolveFront = (cycleT - holdEnd) / this.fadeDuration;
-              const dissolvePos = 1 - p.t;
-              if (dissolvePos <= dissolveFront) {
-                opacity = (1 - Math.min((dissolveFront - dissolvePos) / 0.06, 1.0)) * 0.60;
-              } else {
-                opacity = 0.60;
-              }
+              const dFront = (cycleT - holdEnd) / this.fadeDuration;
+              const dPos = 1 - p.t;
+              if (dPos <= dFront) opacity = (1 - Math.min((dFront - dPos) / 0.06, 1.0)) * 0.55;
+              else opacity = 0.55;
             }
 
             const mesh = p.el.getObject3D('mesh');
