@@ -4,32 +4,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script>
-      AFRAME.registerShader('luma-key', {
-        schema: {
-          src: { type: 'map' },
-          threshold: { type: 'number', default: 0.15 }
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform sampler2D src;
-          uniform float threshold;
-          varying vec2 vUv;
-          void main() {
-            vec4 color = texture2D(src, vUv);
-            float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-            if (luma < threshold) discard;
-            gl_FragColor = color;
-          }
-        `
-      });
-    </script>
   </head>
   <body style="margin: 0; overflow: hidden;">
 
@@ -60,11 +34,11 @@
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
       <a-entity id="target" mindar-image-target="targetIndex: 0">
-        <a-plane
-          width="1" height="1"
-          position="0 0 0"
-          material="shader: luma-key; src: #ar-video-asset; threshold: 0.15; transparent: true; side: double">
-        </a-plane>
+        <a-entity
+          id="video-plane"
+          geometry="primitive: plane; width: 1; height: 1"
+          position="0 0 0">
+        </a-entity>
       </a-entity>
 
     </a-scene>
@@ -73,6 +47,7 @@
       const video = document.querySelector('#ar-video-asset');
       const overlay = document.querySelector('#tap-to-start');
       const target = document.querySelector('#target');
+      const plane = document.querySelector('#video-plane');
 
       overlay.addEventListener('click', () => {
         overlay.style.display = 'none';
@@ -87,6 +62,42 @@
       target.addEventListener('targetLost', () => {
         video.pause();
         video.currentTime = 0;
+      });
+
+      plane.addEventListener('loaded', () => {
+        const texture = new THREE.VideoTexture(video);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+
+        const material = new THREE.ShaderMaterial({
+          uniforms: {
+            map: { value: texture },
+            threshold: { value: 0.15 }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform sampler2D map;
+            uniform float threshold;
+            varying vec2 vUv;
+            void main() {
+              vec4 color = texture2D(map, vUv);
+              float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+              if (luma < threshold) discard;
+              gl_FragColor = color;
+            }
+          `,
+          transparent: true,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+
+        plane.getObject3D('mesh').material = material;
       });
     </script>
 
