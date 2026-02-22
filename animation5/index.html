@@ -7,7 +7,6 @@
   </head>
   <body style="margin: 0; overflow: hidden;">
 
-    <!-- Tap to start overlay -->
     <div id="tap-to-start" style="
       position: fixed; top: 0; left: 0;
       width: 100%; height: 100%;
@@ -18,14 +17,8 @@
       Tap to start
     </div>
 
-    <video id="ar-video" src="./animation.mp4"
-      playsinline webkit-playsinline
-      muted loop preload="auto"
-      style="display: none;">
-    </video>
-
     <a-scene
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.0001; filterBeta: 0.0001;"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.001; filterBeta: 0.001;"
       color-space="sRGB"
       renderer="colorManagement: true"
       vr-mode-ui="enabled: false"
@@ -53,17 +46,21 @@
     <script>
       const video = document.querySelector('#ar-video-asset');
       const overlay = document.querySelector('#tap-to-start');
+      const target = document.querySelector('#target');
 
-      // User must tap first — this unlocks video on iOS
       overlay.addEventListener('click', () => {
         overlay.style.display = 'none';
         video.play().catch(e => console.log('play error:', e));
       });
 
-      // Also play when target found
-      const target = document.querySelector('#target');
       target.addEventListener('targetFound', () => {
+        video.currentTime = 0;
         video.play().catch(e => console.log('play error:', e));
+      });
+
+      target.addEventListener('targetLost', () => {
+        video.pause();
+        video.currentTime = 0;
       });
     </script>
 
