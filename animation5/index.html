@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+  </head>
+  <body style="margin: 0; overflow: hidden;">
+
+    <video id="ar-video" src="./animation.mp4"
+      playsinline webkit-playsinline
+      autoplay muted loop
+      style="display: none;">
+    </video>
+
+    <a-scene
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true;"
+      color-space="sRGB"
+      renderer="colorManagement: true"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+    >
+      <a-assets>
+        <video id="ar-video-asset" src="./animation.mp4"
+          playsinline webkit-playsinline
+          autoplay muted loop>
+        </video>
+      </a-assets>
+
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+      <a-entity mindar-image-target="targetIndex: 0">
+        <!-- Plane sized 1:1 to match your square print -->
+        <!-- width and height = 1 unit = full image width -->
+        <a-plane
+          width="1" height="1"
+          position="0 0 0"
+          rotation="0 0 0"
+          material="src: #ar-video-asset; shader: flat; transparent: true; side: double">
+        </a-plane>
+      </a-entity>
+
+    </a-scene>
+  </body>
+</html>
