@@ -72,7 +72,8 @@
         const material = new THREE.ShaderMaterial({
           uniforms: {
             map: { value: texture },
-            threshold: { value: 0.15 }
+            keyColor: { value: new THREE.Color(0.0, 1.0, 0.0) },
+            similarity: { value: 0.4 }
           },
           vertexShader: `
             varying vec2 vUv;
@@ -83,12 +84,13 @@
           `,
           fragmentShader: `
             uniform sampler2D map;
-            uniform float threshold;
+            uniform vec3 keyColor;
+            uniform float similarity;
             varying vec2 vUv;
             void main() {
-              vec3 keyColor = vec3(0.0, 1.0, 0.0); // pure green
-float diff = length(color.rgb - keyColor);
-if (diff < 0.4) discard;
+              vec4 color = texture2D(map, vUv);
+              float diff = length(color.rgb - keyColor);
+              if (diff < similarity) discard;
               gl_FragColor = color;
             }
           `,
