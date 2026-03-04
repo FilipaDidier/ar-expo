@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":5,"subBranches":4,"subSubBranches":5,"spreadAngle":42,"lengthDecay":0.55,"branchWidth":1.5,"postSway":0.25,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#000c3f","color2":"#6a9bcc","opacity":0.55},"branches":[{"sx":0.37916666666666665,"sy":0.43333333333333335,"sz":-1,"ex":0.35059523809523807,"ey":0.16904761904761906,"ez":-0.4},{"sx":0.6053571428571428,"sy":0.34523809523809523,"sz":-1,"ex":0.6482142857142857,"ey":-0.1404761904761905,"ez":0.65},{"sx":0.3767857142857143,"sy":0.7404761904761904,"sz":-1,"ex":0.4791666666666667,"ey":0.4452380952380952,"ez":-0.8}],"aspect":0.6,"imgOx":0,"imgOy":0.2,"imgSw":1,"imgSh":0.6}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":6,"subBranches":4,"subSubBranches":5,"spreadAngle":36,"lengthDecay":0.8,"branchWidth":2.5,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#d97757","color2":"#6a9bcc","opacity":1},"branches":[{"sx":0.37916666666666665,"sy":0.42857142857142855,"sz":-1,"ex":0.3267857142857143,"ey":0.19761904761904758,"ez":-0.4},{"sx":0.6053571428571428,"sy":0.3547619047619048,"sz":-1,"ex":0.6363095238095238,"ey":-0.02857142857142859,"ez":0.85},{"sx":0.37916666666666665,"sy":0.7333333333333334,"sz":-1,"ex":0.32916666666666666,"ey":1.0547619047619048,"ez":-0.7}],"aspect":0.6,"imgOx":0,"imgOy":0.2,"imgSw":1,"imgSh":0.6}</script>
     <script>
     const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
 
@@ -143,7 +143,7 @@
   </head>
   <body style="margin:0;overflow:hidden;">
     <a-scene
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true;"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.001; filterBeta: 0.001;"
       color-space="sRGB"
       renderer="colorManagement: true"
       vr-mode-ui="enabled: false"
