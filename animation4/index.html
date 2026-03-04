@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":6,"subBranches":4,"subSubBranches":5,"spreadAngle":36,"lengthDecay":0.8,"branchWidth":2.5,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#d97757","color2":"#6a9bcc","opacity":1},"branches":[{"sx":0.37916666666666665,"sy":0.42857142857142855,"sz":-1,"ex":0.3267857142857143,"ey":0.19761904761904758,"ez":-0.4},{"sx":0.6053571428571428,"sy":0.3547619047619048,"sz":-1,"ex":0.6363095238095238,"ey":-0.02857142857142859,"ez":0.85},{"sx":0.37916666666666665,"sy":0.7333333333333334,"sz":-1,"ex":0.32916666666666666,"ey":1.0547619047619048,"ez":-0.7}],"aspect":0.6,"imgOx":0,"imgOy":0.2,"imgSw":1,"imgSh":0.6}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.28,"branchDepth":5,"subBranches":4,"subSubBranches":5,"spreadAngle":42,"lengthDecay":0.7,"branchWidth":2,"postSway":0.4,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#4c1fef","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.37916666666666665,"sy":0.43333333333333335,"sz":-1,"ex":0.3982142857142857,"ey":0.20714285714285718,"ez":-0.15},{"sx":0.6101190476190477,"sy":0.34523809523809523,"sz":-1,"ex":0.6720238095238096,"ey":-0.13571428571428573,"ez":1},{"sx":0.38392857142857145,"sy":0.7333333333333334,"sz":-1,"ex":0.29583333333333334,"ey":1.3095238095238095,"ez":-0.85}],"aspect":0.5,"imgOx":0,"imgOy":0.25,"imgSw":1,"imgSh":0.5}</script>
     <script>
     const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
 
@@ -52,26 +52,24 @@
         const aspect = CFG.aspect || 1;
         const planeW = 1;
         const planeH = 1 / aspect;
-        const maxDepth = 0.35; // metres branches float toward viewer at Z=+1
+        const maxDepth = 0.35;
         const ox = CFG.imgOx||0, oy = CFG.imgOy||0, sw = CFG.imgSw||1, sh = CFG.imgSh||1;
 
         this.P = P;
         this.tick_ = 0;
-        this.segments = [];
 
-        // Canvas-normalized (0-1) + nz(-1..+1)  →  A-Frame 3D metres
         function toAR(nx, ny, nz){
-          return new THREE.Vector3(
+          return [
             (nx - 0.5) * planeW,
             -(ny - 0.5) * planeH,
-            ((nz + 1) / 2) * maxDepth   // -1→0 (on canvas), +1→maxDepth (toward viewer)
-          );
+            ((nz + 1) / 2) * maxDepth
+          ];
         }
 
-        // Flatten branch tree into line segments
-        const allSegs = [];
+        // Collect all segments with metadata
+        const segs = [];
         function flattenNode(node, startTime){
-          const STEPS = 18;
+          const STEPS = 12;
           for(let i=0;i<STEPS;i++){
             const u0=i/STEPS, u1=(i+1)/STEPS;
             const ax=bez(node.sx,node.cp1x,node.cp2x,node.ex,u0);
@@ -80,40 +78,66 @@
             const bx=bez(node.sx,node.cp1x,node.cp2x,node.ex,u1);
             const by=bez(node.sy,node.cp1y,node.cp2y,node.ey,u1);
             const bz=node.sz+(node.ez-node.sz)*u1;
-            allSegs.push({
-              a: toAR(ax,ay,az), b: toAR(bx,by,bz),
-              t: startTime + u0,
-              depth: node.depth
-            });
+            segs.push({ a:toAR(ax,ay,az), b:toAR(bx,by,bz),
+              t: startTime + u0, depth: node.depth });
           }
-          node.children.forEach(c=>{
-            flattenNode(c.node, startTime + c.tOrig);
-          });
+          node.children.forEach(c=> flattenNode(c.node, startTime + c.tOrig));
         }
 
         CFG.branches.forEach(b=>{
           const seed = b.sx*3.1+b.sy*7.3;
-          // b.sx/sy are image-relative, convert to canvas-normalized
           const csx=ox+b.sx*sw, csy=oy+b.sy*sh;
           const cex=ox+b.ex*sw, cey=oy+b.ey*sh;
           const tree = buildNode(csx,csy,b.sz,cex,cey,b.ez,P.branchDepth,seed,P);
           flattenNode(tree, 0);
         });
 
-        // Build Three.js line objects
-        const col = new THREE.Color(P.color1);
-        allSegs.forEach(seg=>{
-          const geo = new THREE.BufferGeometry().setFromPoints([seg.a, seg.b]);
-          const mat = new THREE.LineBasicMaterial({
-            color: col,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false
-          });
-          const line = new THREE.Line(geo, mat);
-          this.el.object3D.add(line);
-          this.segments.push({line, mat, t: seg.t, depth: seg.depth});
+        this.segs = segs;
+        const N = segs.length;
+
+        // Single geometry with 2 vertices per segment
+        const positions = new Float32Array(N * 6);
+        segs.forEach((s,i)=>{
+          positions[i*6+0]=s.a[0]; positions[i*6+1]=s.a[1]; positions[i*6+2]=s.a[2];
+          positions[i*6+3]=s.b[0]; positions[i*6+4]=s.b[1]; positions[i*6+5]=s.b[2];
         });
+
+        // Per-vertex color array — we animate opacity by setting alpha via vertexColors
+        const colors = new Float32Array(N * 8); // rgba x 2 verts
+        this.colors = colors;
+
+        const col = new THREE.Color(P.color1);
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        // We'll drive visibility by moving invisible segs to origin
+        // Simpler: use a single material, toggle per-segment via color alpha
+        // THREE.js LineSegments uses vertexColors so we can set per-vertex alpha
+        const colArr = new Float32Array(N * 6); // rgb x 2 verts
+        for(let i=0;i<N*2;i++){
+          colArr[i*3]=col.r; colArr[i*3+1]=col.g; colArr[i*3+2]=col.b;
+        }
+        geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
+
+        // Store alpha separately, update positions to hide/show
+        this.posAttr = geo.getAttribute('position');
+        this.hiddenPos = new Float32Array(N * 6); // all zeros = origin
+        this.visiblePos = positions.slice();
+
+        const mat = new THREE.LineBasicMaterial({
+          vertexColors: true,
+          transparent: true,
+          opacity: 1,
+          depthWrite: false
+        });
+
+        const lines = new THREE.LineSegments(geo, mat);
+        this.geo = geo;
+        this.mat = mat;
+        this.el.object3D.add(lines);
+
+        // Start with everything hidden
+        this.posAttr.array.fill(0);
+        this.posAttr.needsUpdate = true;
       },
 
       tick: function(time, dt){
@@ -121,29 +145,48 @@
         const P = this.P;
         const cycLen = 3.5 / P.growthSpeed;
         const ph = (this.tick_ % cycLen) / cycLen;
-        // Growth front: 0→2.8 over first 82% of cycle, hold rest
         const gp = ph < 0.82 ? (ph/0.82)*2.8 : 2.8;
-        // Fade out in last 18%
         const fade = ph > 0.88 ? Math.max(0, 1-(ph-0.88)/0.12) : 1;
 
-        this.segments.forEach(s=>{
+        const posArr = this.posAttr.array;
+        const visArr = this.visiblePos;
+        let changed = false;
+
+        this.segs.forEach((s,i)=>{
           const depthAlpha = P.opacity * (s.depth / P.branchDepth) * 0.95;
-          let op = 0;
-          if(gp > s.t){
-            op = Math.min((gp - s.t) / 0.08, 1) * depthAlpha * fade;
+          const visible = gp > s.t;
+          const alpha = visible ? Math.min((gp-s.t)/0.08,1)*depthAlpha*fade : 0;
+          // Show/hide by moving to real position or origin
+          const base = i*6;
+          if(alpha > 0.01){
+            if(posArr[base] !== visArr[base]){
+              posArr[base]=visArr[base]; posArr[base+1]=visArr[base+1]; posArr[base+2]=visArr[base+2];
+              posArr[base+3]=visArr[base+3]; posArr[base+4]=visArr[base+4]; posArr[base+5]=visArr[base+5];
+              changed = true;
+            }
+          } else {
+            if(posArr[base] !== 0 || posArr[base+1] !== 0){
+              posArr[base]=0;posArr[base+1]=0;posArr[base+2]=0;
+              posArr[base+3]=0;posArr[base+4]=0;posArr[base+5]=0;
+              changed = true;
+            }
           }
-          if(s.mat.opacity !== op){
-            s.mat.opacity = op;
-            s.mat.needsUpdate = true;
-          }
+          // Update material opacity won't work per-segment on LineSegments
+          // Instead scale alpha into color brightness
+          // Actually just use global opacity for the whole mesh and show/hide per seg
         });
+
+        // Update global opacity for fade
+        this.mat.opacity = fade * P.opacity;
+        this.mat.needsUpdate = true;
+        if(changed){ this.posAttr.needsUpdate = true; }
       }
     });
     </script>
   </head>
   <body style="margin:0;overflow:hidden;">
     <a-scene
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.001; filterBeta: 0.001;"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.1; filterBeta: 0.01;"
       color-space="sRGB"
       renderer="colorManagement: true"
       vr-mode-ui="enabled: false"
