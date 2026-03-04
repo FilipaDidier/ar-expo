@@ -4,17 +4,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":42,"lengthDecay":0.7,"branchWidth":1.5,"postSway":0.15,"swaySpeed":0.35,"swayDuration":3,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#1f3560","color2":"#6a9bcc","opacity":0.95},"branches":[{"sx":0.37063492063492065,"sy":0.4365079365079365,"sz":-1,"ex":0.3515873015873016,"ey":0.14126984126984127,"ez":-0.4},{"sx":0.6077380952380952,"sy":0.3547619047619048,"sz":-1,"ex":0.6791666666666667,"ey":-0.0690476190476191,"ez":0.5},{"sx":0.37916666666666665,"sy":0.7357142857142858,"sz":-1,"ex":0.3458333333333333,"ey":1.1309523809523812,"ez":-0.55}],"W":420,"H":700,"aspect":0.6,"imgOx":0,"imgOy":0.2,"imgSw":1,"imgSh":0.6}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":5,"subBranches":4,"subSubBranches":5,"spreadAngle":42,"lengthDecay":0.55,"branchWidth":1.5,"postSway":0.25,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#000c3f","color2":"#6a9bcc","opacity":0.55},"branches":[{"sx":0.37916666666666665,"sy":0.43333333333333335,"sz":-1,"ex":0.35059523809523807,"ey":0.16904761904761906,"ez":-0.4},{"sx":0.6053571428571428,"sy":0.34523809523809523,"sz":-1,"ex":0.6482142857142857,"ey":-0.1404761904761905,"ez":0.65},{"sx":0.3767857142857143,"sy":0.7404761904761904,"sz":-1,"ex":0.4791666666666667,"ey":0.4452380952380952,"ez":-0.8}],"aspect":0.6,"imgOx":0,"imgOy":0.2,"imgSw":1,"imgSh":0.6}</script>
     <script>
-    const CFG = JSON.parse(document.getElementById("cfg-data").textContent);
+    const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
 
     // ── Math helpers ──
     function bez(p0,p1,p2,p3,t){const m=1-t;return m*m*m*p0+3*m*m*t*p1+3*m*t*t*p2+t*t*t*p3;}
     function bezD(p0,p1,p2,p3,t){const m=1-t;return 3*m*m*(p1-p0)+6*m*t*(p2-p1)+3*t*t*(p3-p2);}
     function fh(n){const s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s);}
-    function rgba(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;}
 
-    // ── Build branch tree (same as creator) ──
+    // ── Build branch tree ──
     function buildNode(sx,sy,sz,ex,ey,ez,depth,seed,P){
       const dx=ex-sx,dy=ey-sy,len=Math.sqrt(dx*dx+dy*dy)||0.001;
       const px=-dy/len,py=dx/len;
@@ -50,34 +49,71 @@
     AFRAME.registerComponent('branch-anim', {
       init: function(){
         const P = CFG.P;
-        const W = CFG.W, H = CFG.H;
-        this.P = P; this.tick_ = 0;
-
-        // Canvas texture — match image aspect ratio
         const aspect = CFG.aspect || 1;
-        const canvas = document.createElement('canvas');
-        canvas.width = 1024;
-        canvas.height = Math.round(1024 / aspect);
-        this.canvas = canvas; this.ctx = canvas.getContext('2d');
+        const planeW = 1;
+        const planeH = 1 / aspect;
+        const maxDepth = 0.35; // metres branches float toward viewer at Z=+1
+        const ox = CFG.imgOx||0, oy = CFG.imgOy||0, sw = CFG.imgSw||1, sh = CFG.imgSh||1;
 
-        // Build trees
-        this.trees = CFG.branches.map(b=>{
-          const seed = b.sx*3.1+b.sy*7.3;
-          const ox=CFG.imgOx||0,oy=CFG.imgOy||0,sw=CFG.imgSw||1,sh=CFG.imgSh||1;
-          return buildNode(ox+b.sx*sw,oy+b.sy*sh,b.sz,ox+b.ex*sw,oy+b.ey*sh,b.ez,P.branchDepth,seed,P);
-        });
+        this.P = P;
+        this.tick_ = 0;
+        this.segments = [];
 
-        // Apply canvas as texture to the plane
-        const tex = new THREE.CanvasTexture(canvas);
-        this.tex = tex;
-        const mesh = this.el.getObject3D('mesh');
-        if(mesh){ mesh.material.map = tex; mesh.material.transparent = true; mesh.material.needsUpdate = true; }
-        else {
-          this.el.addEventListener('object3dset', ()=>{
-            const m = this.el.getObject3D('mesh');
-            if(m){ m.material.map = tex; m.material.transparent = true; m.material.needsUpdate = true; }
+        // Canvas-normalized (0-1) + nz(-1..+1)  →  A-Frame 3D metres
+        function toAR(nx, ny, nz){
+          return new THREE.Vector3(
+            (nx - 0.5) * planeW,
+            -(ny - 0.5) * planeH,
+            ((nz + 1) / 2) * maxDepth   // -1→0 (on canvas), +1→maxDepth (toward viewer)
+          );
+        }
+
+        // Flatten branch tree into line segments
+        const allSegs = [];
+        function flattenNode(node, startTime){
+          const STEPS = 18;
+          for(let i=0;i<STEPS;i++){
+            const u0=i/STEPS, u1=(i+1)/STEPS;
+            const ax=bez(node.sx,node.cp1x,node.cp2x,node.ex,u0);
+            const ay=bez(node.sy,node.cp1y,node.cp2y,node.ey,u0);
+            const az=node.sz+(node.ez-node.sz)*u0;
+            const bx=bez(node.sx,node.cp1x,node.cp2x,node.ex,u1);
+            const by=bez(node.sy,node.cp1y,node.cp2y,node.ey,u1);
+            const bz=node.sz+(node.ez-node.sz)*u1;
+            allSegs.push({
+              a: toAR(ax,ay,az), b: toAR(bx,by,bz),
+              t: startTime + u0,
+              depth: node.depth
+            });
+          }
+          node.children.forEach(c=>{
+            flattenNode(c.node, startTime + c.tOrig);
           });
         }
+
+        CFG.branches.forEach(b=>{
+          const seed = b.sx*3.1+b.sy*7.3;
+          // b.sx/sy are image-relative, convert to canvas-normalized
+          const csx=ox+b.sx*sw, csy=oy+b.sy*sh;
+          const cex=ox+b.ex*sw, cey=oy+b.ey*sh;
+          const tree = buildNode(csx,csy,b.sz,cex,cey,b.ez,P.branchDepth,seed,P);
+          flattenNode(tree, 0);
+        });
+
+        // Build Three.js line objects
+        const col = new THREE.Color(P.color1);
+        allSegs.forEach(seg=>{
+          const geo = new THREE.BufferGeometry().setFromPoints([seg.a, seg.b]);
+          const mat = new THREE.LineBasicMaterial({
+            color: col,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false
+          });
+          const line = new THREE.Line(geo, mat);
+          this.el.object3D.add(line);
+          this.segments.push({line, mat, t: seg.t, depth: seg.depth});
+        });
       },
 
       tick: function(time, dt){
@@ -85,65 +121,22 @@
         const P = this.P;
         const cycLen = 3.5 / P.growthSpeed;
         const ph = (this.tick_ % cycLen) / cycLen;
+        // Growth front: 0→2.8 over first 82% of cycle, hold rest
         const gp = ph < 0.82 ? (ph/0.82)*2.8 : 2.8;
+        // Fade out in last 18%
+        const fade = ph > 0.88 ? Math.max(0, 1-(ph-0.88)/0.12) : 1;
 
-        const cv = this.canvas, ctx = this.ctx;
-        const CW = cv.width, CH = cv.height;
-        ctx.clearRect(0,0,CW,CH);
-
-        // swayDecay from hold phase
-        let swayDecay = 0;
-        if(ph >= 0.82) swayDecay = Math.max(0, 1 - ((ph-0.82)/0.18) * (cycLen*0.18/P.swayDuration||1));
-
-        const t = this.tick_;
-
-        const drawNode = (node, growthFront, odx, ody) => {
-          if(!node || growthFront<=0) return;
-          odx=odx||0; ody=ody||0;
-          const gf=Math.min(1,growthFront);
-          let swayAngle=0;
-          if(growthFront>1 && P.postSway>0){
-            const overshoot=growthFront-1;
-            const decayFrac=P.swayDuration>0?Math.max(0,1-overshoot/P.swayDuration*2):1;
-            swayAngle=Math.sin(t*P.swaySpeed*0.06+node.sx*0.8+node.sy*0.5)*P.postSway*0.3*decayFrac;
+        this.segments.forEach(s=>{
+          const depthAlpha = P.opacity * (s.depth / P.branchDepth) * 0.95;
+          let op = 0;
+          if(gp > s.t){
+            op = Math.min((gp - s.t) / 0.08, 1) * depthAlpha * fade;
           }
-          function applyT(rawBx,rawBy){
-            const lx=rawBx-node.sx,ly=rawBy-node.sy;
-            if(swayAngle===0) return {x:rawBx+odx,y:rawBy+ody};
-            return {x:node.sx+odx+lx*Math.cos(swayAngle)-ly*Math.sin(swayAngle),
-                    y:node.sy+ody+lx*Math.sin(swayAngle)+ly*Math.cos(swayAngle)};
+          if(s.mat.opacity !== op){
+            s.mat.opacity = op;
+            s.mat.needsUpdate = true;
           }
-          const steps=Math.max(8,Math.round(24*gf));
-          const baseW=Math.max(0.2,P.branchWidth*(node.depth/P.branchDepth));
-          const tipW=Math.max(0.05,baseW*0.08);
-          const alpha=P.opacity*(node.depth/P.branchDepth)*0.95;
-          let prevPP=null;
-          for(let i=0;i<=steps;i++){
-            const u=(i/steps)*gf;
-            const rawBx=bez(node.sx,node.cp1x,node.cp2x,node.ex,u);
-            const rawBy=bez(node.sy,node.cp1y,node.cp2y,node.ey,u);
-            const tb=applyT(rawBx,rawBy);
-            const px=tb.x*CW, py=tb.y*CH;
-            if(prevPP){
-              const w=baseW+(tipW-baseW)*u;
-              ctx.strokeStyle=rgba(P.color1,alpha);
-              ctx.lineWidth=w; ctx.lineCap='round';
-              ctx.beginPath(); ctx.moveTo(prevPP.x,prevPP.y); ctx.lineTo(px,py); ctx.stroke();
-            }
-            prevPP={x:px,y:py};
-          }
-          node.children.forEach(c=>{
-            const childFront=Math.max(0,growthFront-c.tOrig);
-            if(childFront<=0) return;
-            const rawOx=bez(node.sx,node.cp1x,node.cp2x,node.ex,c.tOrig);
-            const rawOy=bez(node.sy,node.cp1y,node.cp2y,node.ey,c.tOrig);
-            const to=applyT(rawOx,rawOy);
-            drawNode(c.node,childFront,to.x-c.node.sx,to.y-c.node.sy);
-          });
-        };
-
-        this.trees.forEach(tree => drawNode(tree, gp));
-        this.tex.needsUpdate = true;
+        });
       }
     });
     </script>
@@ -158,7 +151,7 @@
     >
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       <a-entity mindar-image-target="targetIndex: 0">
-        <a-plane branch-anim width="1" height="1.6667" material="transparent:true;opacity:1;shader:flat;" rotation="0 0 0"></a-plane>
+        <a-entity branch-anim></a-entity>
       </a-entity>
     </a-scene>
   </body>
