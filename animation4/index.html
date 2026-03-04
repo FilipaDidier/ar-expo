@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.28,"branchDepth":5,"subBranches":4,"subSubBranches":5,"spreadAngle":42,"lengthDecay":0.7,"branchWidth":2,"postSway":0.4,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#4c1fef","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.37916666666666665,"sy":0.43333333333333335,"sz":-1,"ex":0.3982142857142857,"ey":0.20714285714285718,"ez":-0.15},{"sx":0.6101190476190477,"sy":0.34523809523809523,"sz":-1,"ex":0.6720238095238096,"ey":-0.13571428571428573,"ez":1},{"sx":0.38392857142857145,"sy":0.7333333333333334,"sz":-1,"ex":0.29583333333333334,"ey":1.3095238095238095,"ez":-0.85}],"aspect":0.5,"imgOx":0,"imgOy":0.25,"imgSw":1,"imgSh":0.5}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.35,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":33,"lengthDecay":0.7,"branchWidth":2,"postSway":0.3,"swaySpeed":0.4,"swayDuration":3,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#30611f","color2":"#6a9bcc","opacity":0.8},"branches":[{"sx":0.38258426966292136,"sy":0.43258426966292135,"sz":-1,"ex":0.33314606741573033,"ey":0.20112359550561798,"ez":-0.7},{"sx":0.6140449438202247,"sy":0.34719101123595514,"sz":-1,"ex":0.65,"ey":-0.07977528089887641,"ez":-0.1},{"sx":0.37808988764044943,"sy":0.7359550561797753,"sz":-1,"ex":0.48820224719101124,"ey":0.45505617977528096,"ez":1}],"aspect":0.6,"imgOx":0,"imgOy":0.20013477088948786,"imgSw":1,"imgSh":0.5997304582210242}</script>
     <script>
     const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
 
@@ -138,11 +138,14 @@
         // Start with everything hidden
         this.posAttr.array.fill(0);
         this.posAttr.needsUpdate = true;
+
       },
 
       tick: function(time, dt){
         this.tick_ += dt * 0.001;
         const P = this.P;
+
+
         const cycLen = 3.5 / P.growthSpeed;
         const ph = (this.tick_ % cycLen) / cycLen;
         const gp = ph < 0.82 ? (ph/0.82)*2.8 : 2.8;
@@ -186,7 +189,7 @@
   </head>
   <body style="margin:0;overflow:hidden;">
     <a-scene
-      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.1; filterBeta: 0.01;"
+      mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; filterMinCF: 0.001; filterBeta: 0.1;"
       color-space="sRGB"
       renderer="colorManagement: true"
       vr-mode-ui="enabled: false"
