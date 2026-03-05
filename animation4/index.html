@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":34,"lengthDecay":0.6,"branchWidth":7,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#1920e6","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.375,"sy":0.4383886255924171,"sz":-1,"ex":0.370260663507109,"ey":0.21563981042654032,"ez":0.25},{"sx":0.6024881516587678,"sy":0.3459715639810427,"sz":-1,"ex":0.6546208530805687,"ey":-0.1374407582938388,"ez":0.9},{"sx":0.37736966824644547,"sy":0.7251184834123222,"sz":-1,"ex":0.365521327014218,"ey":1.1540284360189572,"ez":-0.7}],"aspect":0.6,"imgOx":-6.735002234692893e-17,"imgOy":0.1998577524893314,"imgSw":1.0000000000000002,"imgSh":0.6002844950213372}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":25,"lengthDecay":0.65,"branchWidth":7,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#d97757","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.37736966824644547,"sy":0.4407582938388626,"sz":-1,"ex":0.34419431279620855,"ey":0.2345971563981043,"ez":0.2},{"sx":0.6119668246445498,"sy":0.3554502369668247,"sz":-1,"ex":0.6404028436018957,"ey":-0.03791469194312793,"ez":1},{"sx":0.37736966824644547,"sy":0.7345971563981042,"sz":-1,"ex":0.3678909952606635,"ey":1.0308056872037914,"ez":-0.85}],"aspect":0.6,"imgOx":-6.735002234692893e-17,"imgOy":0.1998577524893314,"imgSw":1.0000000000000002,"imgSh":0.6002844950213372}</script>
     <script>
     const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
     const P = CFG.P;
@@ -257,7 +257,7 @@ function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
       init: function(){
         const aspect = CFG.aspect || 1;
         this.tick_ = 0;
-        this.texApplied = false;
+        this.matApplied = false;
         const ox = CFG.imgOx||0, oy = CFG.imgOy||0, sw = CFG.imgSw||1, sh = CFG.imgSh||1;
 
         // Build trees
@@ -278,18 +278,38 @@ function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
         const tex = new THREE.CanvasTexture(canvas);
         tex.minFilter = THREE.LinearFilter;
         this.tex = tex;
+
+        // Replace A-Frame material with raw Three.js MeshBasicMaterial
+        // Do this on object3dset to ensure mesh exists
+        const applyMat = () => {
+          const mesh = this.el.getObject3D('mesh');
+          if(mesh){
+            mesh.material = new THREE.MeshBasicMaterial({
+              map: tex,
+              transparent: true,
+              side: THREE.DoubleSide,
+              depthWrite: false
+            });
+            this.matApplied = true;
+          }
+        };
+        this.el.addEventListener('object3dset', applyMat);
+        // Also try immediately in case mesh already exists
+        applyMat();
       },
 
       tick: function(time, dt){
-        // Apply texture to mesh as soon as it exists (may not be ready in init)
-        if(!this.texApplied){
+        // Retry material application if mesh wasn't ready in init
+        if(!this.matApplied){
           const mesh = this.el.getObject3D('mesh');
-          if(mesh && mesh.material){
-            mesh.material.map = this.tex;
-            mesh.material.transparent = true;
-            mesh.material.opacity = 1;
-            mesh.material.needsUpdate = true;
-            this.texApplied = true;
+          if(mesh){
+            mesh.material = new THREE.MeshBasicMaterial({
+              map: this.tex,
+              transparent: true,
+              side: THREE.DoubleSide,
+              depthWrite: false
+            });
+            this.matApplied = true;
           }
         }
 
