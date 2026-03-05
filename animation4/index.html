@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.35,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":33,"lengthDecay":0.7,"branchWidth":2,"postSway":0.3,"swaySpeed":0.4,"swayDuration":3,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#30611f","color2":"#6a9bcc","opacity":0.8},"branches":[{"sx":0.38258426966292136,"sy":0.43258426966292135,"sz":-1,"ex":0.33314606741573033,"ey":0.20112359550561798,"ez":-0.7},{"sx":0.6140449438202247,"sy":0.34719101123595514,"sz":-1,"ex":0.65,"ey":-0.07977528089887641,"ez":-0.1},{"sx":0.37808988764044943,"sy":0.7359550561797753,"sz":-1,"ex":0.48820224719101124,"ey":0.45505617977528096,"ez":1}],"aspect":0.6,"imgOx":0,"imgOy":0.20013477088948786,"imgSw":1,"imgSh":0.5997304582210242}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":28,"lengthDecay":0.7,"branchWidth":2,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#d97757","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.3735763097949886,"sy":0.4339407744874715,"sz":-1,"ex":0.357630979498861,"ey":0.23120728929384962,"ez":-0.5},{"sx":0.6036446469248291,"sy":0.34965831435079725,"sz":-1,"ex":0.7790432801822323,"ey":0.014806378132118466,"ez":0.7},{"sx":0.3826879271070615,"sy":0.7346241457858769,"sz":-1,"ex":0.29157175398633256,"ey":1.112756264236902,"ez":-0.6}],"aspect":0.6,"imgOx":0,"imgOy":0.20013661202185792,"imgSw":1,"imgSh":0.5997267759562842}</script>
     <script>
     const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
 
@@ -45,6 +45,28 @@
       }
       return node;
     }
+
+    AFRAME.registerComponent('smooth-target', {
+      init: function(){
+        this._sp = new THREE.Vector3();
+        this._sq = new THREE.Quaternion();
+        this._ready = false;
+        this.el.addEventListener('targetFound', () => { this._ready = false; });
+      },
+      tick: function(){
+        const obj = this.el.object3D;
+        if(!obj.visible) return;
+        const p = obj.position, q = obj.quaternion;
+        if(!this._ready){
+          this._sp.copy(p); this._sq.copy(q);
+          this._ready = true; return;
+        }
+        this._sp.lerp(p, 0.18);
+        this._sq.slerp(q, 0.18);
+        p.copy(this._sp);
+        q.copy(this._sq);
+      }
+    });
 
     AFRAME.registerComponent('branch-anim', {
       init: function(){
@@ -156,7 +178,7 @@
         let changed = false;
 
         this.segs.forEach((s,i)=>{
-          const depthAlpha = P.opacity * (s.depth / P.branchDepth) * 0.95;
+          const dr = s.depth / P.branchDepth; const depthAlpha = P.opacity * dr * dr * 0.95;
           const visible = gp > s.t;
           const alpha = visible ? Math.min((gp-s.t)/0.08,1)*depthAlpha*fade : 0;
           // Show/hide by moving to real position or origin
@@ -196,7 +218,7 @@
       device-orientation-permission-ui="enabled: false"
     >
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-      <a-entity mindar-image-target="targetIndex: 0">
+      <a-entity mindar-image-target="targetIndex: 0" smooth-target>
         <a-entity branch-anim></a-entity>
       </a-entity>
     </a-scene>
