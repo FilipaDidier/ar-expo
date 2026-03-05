@@ -4,207 +4,322 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":28,"lengthDecay":0.7,"branchWidth":7,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#a12b2b","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.3735763097949886,"sy":0.4339407744874715,"sz":-1,"ex":0.357630979498861,"ey":0.23120728929384962,"ez":-0.5},{"sx":0.6036446469248291,"sy":0.34965831435079725,"sz":-1,"ex":0.7790432801822323,"ey":0.014806378132118466,"ez":0.7},{"sx":0.3826879271070615,"sy":0.7346241457858769,"sz":-1,"ex":0.29157175398633256,"ey":1.112756264236902,"ez":-0.6}],"aspect":0.6,"imgOx":0,"imgOy":0.20013661202185792,"imgSw":1,"imgSh":0.5997267759562842}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":27,"lengthDecay":0.6,"branchWidth":7,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#08b41d","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.37736966824644547,"sy":0.43364928909952605,"sz":-1,"ex":0.35604265402843605,"ey":0.22748815165876776,"ez":-0.5},{"sx":0.6048578199052133,"sy":0.3459715639810427,"sz":-1,"ex":0.6309241706161137,"ey":-0.021327014218009428,"ez":0.7},{"sx":0.37973933649289093,"sy":0.7369668246445498,"sz":-1,"ex":0.32286729857819907,"ey":1.066350710900474,"ez":-0.75}],"aspect":0.6,"imgOx":-6.735002234692893e-17,"imgOy":0.1998577524893314,"imgSw":1.0000000000000002,"imgSh":0.6002844950213372}</script>
     <script>
     const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
+    const P = CFG.P;
 
-    // ── Math helpers ──
     function bez(p0,p1,p2,p3,t){const m=1-t;return m*m*m*p0+3*m*m*t*p1+3*m*t*t*p2+t*t*t*p3;}
-    function bezD(p0,p1,p2,p3,t){const m=1-t;return 3*m*m*(p1-p0)+6*m*t*(p2-p1)+3*t*t*(p3-p2);}
-    function fh(n){const s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s);}
+// Evaluate cubic bezier derivative at t
+function bezD(p0,p1,p2,p3,t){const m=1-t;return 3*m*m*(p1-p0)+6*m*t*(p2-p1)+3*t*t*(p3-p2);}
+// Deterministic float hash
+function fh(n){const s=Math.sin(n*127.1)*43758.5453;return s-Math.floor(s);}
+// Simplex-like noise
+function sn(x,y,t){return Math.sin(x*3.7+t)*Math.cos(y*4.1-t*0.7)+Math.sin(x*7.3-t*1.3)*Math.cos(y*6.9+t)*0.5;}
 
-    // ── Build branch tree ──
-    function buildNode(sx,sy,sz,ex,ey,ez,depth,seed,P){
-      const dx=ex-sx,dy=ey-sy,len=Math.sqrt(dx*dx+dy*dy)||0.001;
-      const px=-dy/len,py=dx/len;
-      const r1=fh(seed)-0.5,r2=fh(seed*1.618)-0.5;
-      const minDev=0.3;
-      const d1=(r1<0?-1:1)*Math.max(Math.abs(r1),minDev)*2*P.curviness;
-      const d2=(r2<0?-1:1)*Math.max(Math.abs(r2),minDev)*2*P.curviness;
-      const node={sx,sy,sz,ex,ey,ez,
-        cp1x:sx+dx*0.33+px*len*d1,cp1y:sy+dy*0.33+py*len*d1,
-        cp2x:sx+dx*0.67+px*len*d2,cp2y:sy+dy*0.67+py*len*d2,
-        depth,children:[]};
-      if(depth>1){
-        const n=(depth===P.branchDepth)?P.subBranches:P.subSubBranches;
-        const spread=P.spreadAngle*Math.PI/180;
-        for(let i=0;i<n;i++){
-          const tOrig=0.1+0.4*(i/(n-1));
-          const ox=bez(sx,node.cp1x,node.cp2x,ex,tOrig);
-          const oy=bez(sy,node.cp1y,node.cp2y,ey,tOrig);
-          const oz=sz+(ez-sz)*tOrig;
-          const tdx=bezD(sx,node.cp1x,node.cp2x,ex,tOrig);
-          const tdy=bezD(sy,node.cp1y,node.cp2y,ey,tOrig);
-          const tang=Math.atan2(tdy,tdx);
-          const side=(i%2===0)?1:-1;
-          const sideAngle=spread*(0.25+fh(seed*2.1+i*5.7)*0.55);
-          const ang=tang+side*sideAngle;
-          const clen=Math.min(len*P.lengthDecay,len*(1-tOrig)*1.1);
-          node.children.push({tOrig,node:buildNode(ox,oy,oz,ox+Math.cos(ang)*clen,oy+Math.sin(ang)*clen,oz+(i-n/2)*0.04,depth-1,seed*31+i*17+depth*7,P)});
-        }
-      }
-      return node;
+// ─────────────────────────────────────────────────────────────────────────────
+// BRANCH TREE BUILDER
+//
+// Each node = one branch segment, described by a cubic bezier curve.
+// The bezier shape is FIXED at build time (seeded random control point offsets).
+// Children are placed at specific t-values ALONG the parent curve (not at tip).
+// When drawn, the curve is progressively revealed by sampling t from 0 to
+// growthProgress. A child's growth starts when the parent's growth front
+// passes the child's origin t-value.
+// ─────────────────────────────────────────────────────────────────────────────
+function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
+  const dx=ex-sx, dy=ey-sy;
+  const len=Math.sqrt(dx*dx+dy*dy)||0.001;
+  const px=-dy/len, py=dx/len; // perpendicular unit vector
+
+  // Fixed, seeded control-point offsets — gives organic curve, never changes
+  const r1=fh(seed      )-0.5, r2=fh(seed*1.618)-0.5;
+  // Ensure minimum absolute deviation so no branch is accidentally near-straight
+  const minDev=0.3;
+  const d1=(r1<0?-1:1)*Math.max(Math.abs(r1),minDev)*2*P.curviness;
+  const d2=(r2<0?-1:1)*Math.max(Math.abs(r2),minDev)*2*P.curviness;
+  const cp1x=sx+dx*0.33+px*len*d1, cp1y=sy+dy*0.33+py*len*d1;
+  const cp2x=sx+dx*0.67+px*len*d2, cp2y=sy+dy*0.67+py*len*d2;
+
+  const node={
+    sx,sy,sz, ex,ey,ez,
+    cp1x,cp1y, cp2x,cp2y,
+    depth, children:[]
+  };
+
+  if(depth>1){
+    const n = (depth === P.branchDepth) ? P.subBranches : P.subSubBranches;
+    const spread=P.spreadAngle*Math.PI/180;
+    // Distribute children at different t-values along this branch
+    // so they branch off from different points along the parent, not all from tip
+    for(let i=0;i<n;i++){
+      // Origin t-value: last child closest to tip, first child lower down
+      // e.g. 3 children: t = 0.55, 0.72, 0.88
+      const tOrig=0.2+0.6*(i/(n-1));
+
+      // Position on the parent bezier at tOrig
+      const ox=bez(sx,cp1x,cp2x,ex,tOrig);
+      const oy=bez(sy,cp1y,cp2y,ey,tOrig);
+      const oz=sz+(ez-sz)*tOrig;
+
+      // Tangent direction at tOrig — children grow FROM this tangent
+      const tdx=bezD(sx,cp1x,cp2x,ex,tOrig);
+      const tdy=bezD(sy,cp1y,cp2y,ey,tOrig);
+      const tang=Math.atan2(tdy,tdx);
+
+      // Spread children symmetrically around the tangent
+      const side = (i%2===0) ? 1 : -1;
+      const sideAngle = spread*(0.25 + fh(seed*2.1+i*5.7)*0.55);
+      const ang=tang+side*sideAngle;
+      const clen=len*P.lengthDecay;
+
+      node.children.push({
+        tOrig,  // parent t-value where this child originates
+        node: buildNode(
+          ox,oy,oz,
+          ox+Math.cos(ang)*clen, oy+Math.sin(ang)*clen, oz+(i-n/2)*0.04,
+          depth-1, seed*31+i*17+depth*7
+        )
+      });
+    }
+  }
+  return node;
+}
+
+    function prj(nx, ny, nz, W, H, rX, rY){
+  const persp = 900; // must match CSS perspective value
+  const depthScale = Math.min(W,H) * 0.5; // how many px Z=1 floats above surface
+
+  // CSS: rotateX(-rX*0.65) rotateY(rY*0.65), applied Y first then X
+  const ry =  (rY||0) * 0.65 * Math.PI/180;
+  const rx = -(rX||0) * 0.65 * Math.PI/180;
+
+  // Center the point; z=0 is the image surface
+  let x = nx*W - W/2;
+  let y = ny*H - H/2;
+  let z = (nz + 1) / 2 * depthScale; // nz=-1→0 (surface), nz=+1→depthScale (viewer)
+
+  // Apply rotateY first (CSS right-to-left order)
+  let x2 =  x*Math.cos(ry) + z*Math.sin(ry);
+  let z2 = -x*Math.sin(ry) + z*Math.cos(ry);
+
+  // Apply rotateX
+  let y3 =  y*Math.cos(rx) - z2*Math.sin(rx);
+  let z3 =  y*Math.sin(rx) + z2*Math.cos(rx);
+
+  // CSS perspective: P/(P-z), positive z = toward viewer
+  const scale = persp / (persp - z3);
+
+  return { x: x2*scale + W/2, y: y3*scale + H/2 };
+}
+
+    function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
+  const dx=ex-sx, dy=ey-sy;
+  const len=Math.sqrt(dx*dx+dy*dy)||0.001;
+  const px=-dy/len, py=dx/len; // perpendicular unit vector
+
+  // Fixed, seeded control-point offsets — gives organic curve, never changes
+  const r1=fh(seed      )-0.5, r2=fh(seed*1.618)-0.5;
+  // Ensure minimum absolute deviation so no branch is accidentally near-straight
+  const minDev=0.3;
+  const d1=(r1<0?-1:1)*Math.max(Math.abs(r1),minDev)*2*P.curviness;
+  const d2=(r2<0?-1:1)*Math.max(Math.abs(r2),minDev)*2*P.curviness;
+  const cp1x=sx+dx*0.33+px*len*d1, cp1y=sy+dy*0.33+py*len*d1;
+  const cp2x=sx+dx*0.67+px*len*d2, cp2y=sy+dy*0.67+py*len*d2;
+
+  const node={
+    sx,sy,sz, ex,ey,ez,
+    cp1x,cp1y, cp2x,cp2y,
+    depth, children:[]
+  };
+
+  if(depth>1){
+    const n = (depth === P.branchDepth) ? P.subBranches : P.subSubBranches;
+    const spread=P.spreadAngle*Math.PI/180;
+    // Distribute children at different t-values along this branch
+    // so they branch off from different points along the parent, not all from tip
+    for(let i=0;i<n;i++){
+      // Origin t-value: last child closest to tip, first child lower down
+      // e.g. 3 children: t = 0.55, 0.72, 0.88
+      const tOrig=0.2+0.6*(i/(n-1));
+
+      // Position on the parent bezier at tOrig
+      const ox=bez(sx,cp1x,cp2x,ex,tOrig);
+      const oy=bez(sy,cp1y,cp2y,ey,tOrig);
+      const oz=sz+(ez-sz)*tOrig;
+
+      // Tangent direction at tOrig — children grow FROM this tangent
+      const tdx=bezD(sx,cp1x,cp2x,ex,tOrig);
+      const tdy=bezD(sy,cp1y,cp2y,ey,tOrig);
+      const tang=Math.atan2(tdy,tdx);
+
+      // Spread children symmetrically around the tangent
+      const side = (i%2===0) ? 1 : -1;
+      const sideAngle = spread*(0.25 + fh(seed*2.1+i*5.7)*0.55);
+      const ang=tang+side*sideAngle;
+      const clen=len*P.lengthDecay;
+
+      node.children.push({
+        tOrig,  // parent t-value where this child originates
+        node: buildNode(
+          ox,oy,oz,
+          ox+Math.cos(ang)*clen, oy+Math.sin(ang)*clen, oz+(i-n/2)*0.04,
+          depth-1, seed*31+i*17+depth*7
+        )
+      });
     }
 
+    function drawNode(ctx, W, H, node, growthFront, t, rX, rY, odx, ody){
+  if(!node || growthFront<=0) return;
+  odx=odx||0; ody=ody||0;
+  const gf=Math.min(1,growthFront);
+
+  let swayAngle=0;
+  if(growthFront>1 && P.postSway>0){
+    const overshoot=growthFront-1;
+    const decayFrac=P.swayDuration>0 ? Math.max(0,1-overshoot/P.swayDuration*2) : 1;
+    swayAngle=Math.sin(t*P.swaySpeed*0.06 + node.sx*0.8+node.sy*0.5)*P.postSway*0.3*decayFrac;
+  }
+
+  function applyTransform(rawBx,rawBy){
+    const lx=rawBx-node.sx, ly=rawBy-node.sy;
+    if(swayAngle===0) return {x:rawBx+odx, y:rawBy+ody};
+    return {
+      x: node.sx+odx+lx*Math.cos(swayAngle)-ly*Math.sin(swayAngle),
+      y: node.sy+ody+lx*Math.sin(swayAngle)+ly*Math.cos(swayAngle)
+    };
+  }
+
+  const steps=Math.max(8,Math.round(24*gf));
+  const baseW=Math.max(0.2,P.branchWidth*(node.depth/P.branchDepth));
+  const tipW=Math.max(0.05,baseW*0.08);
+  const alpha=P.opacity*(node.depth/P.branchDepth)*0.95;
+  ctx.save();
+  ctx.lineCap='round';
+  let prevPP=null;
+  for(let i=0;i<=steps;i++){
+    const u=(i/steps)*gf;
+    const rawBx=bez(node.sx,node.cp1x,node.cp2x,node.ex,u);
+    const rawBy=bez(node.sy,node.cp1y,node.cp2y,node.ey,u);
+    const bz=node.sz+(node.ez-node.sz)*u;
+    const tb=applyTransform(rawBx,rawBy);
+    const pp=prj(tb.x,tb.y,bz,W,H,rX,rY);
+    if(prevPP){
+      const w=baseW+(tipW-baseW)*u;
+      ctx.strokeStyle=rgba(P.color1,alpha);
+      ctx.lineWidth=w;
+      ctx.beginPath();
+      ctx.moveTo(prevPP.x,prevPP.y);
+      ctx.lineTo(pp.x,pp.y);
+      ctx.stroke();
+    }
+    prevPP=pp;
+  }
+  ctx.restore();
+
+  node.children.forEach(c=>{
+    const childFront=Math.max(0,growthFront-c.tOrig);
+    if(childFront<=0) return;
+    // Compute where child spawn point actually landed after this node's sway
+    const rawOx=bez(node.sx,node.cp1x,node.cp2x,node.ex,c.tOrig);
+    const rawOy=bez(node.sy,node.cp1y,node.cp2y,node.ey,c.tOrig);
+    const to=applyTransform(rawOx,rawOy);
+    drawNode(ctx,W,H,c.node,childFront,t,rX,rY,to.x-c.node.sx,to.y-c.node.sy);
+  });
+}
+
+    // Smooth tracker component
     AFRAME.registerComponent('smooth-target', {
       init: function(){
         this._sp = new THREE.Vector3();
         this._sq = new THREE.Quaternion();
+        this._ss = new THREE.Vector3(1,1,1);
         this._ready = false;
         this.el.addEventListener('targetFound', () => { this._ready = false; });
       },
       tick: function(){
         const obj = this.el.object3D;
         if(!obj.visible) return;
-        const p = obj.position, q = obj.quaternion;
+        const p = obj.position, q = obj.quaternion, s = obj.scale;
         if(!this._ready){
-          this._sp.copy(p); this._sq.copy(q);
+          this._sp.copy(p); this._sq.copy(q); this._ss.copy(s);
           this._ready = true; return;
         }
-        this._sp.lerp(p, 0.18);
-        this._sq.slerp(q, 0.18);
+        this._sp.lerp(p, 0.2);
+        this._sq.slerp(q, 0.2);
         p.copy(this._sp);
         q.copy(this._sq);
       }
     });
 
+    // Main animation component using canvas texture — exact same drawing code as the creator app
     AFRAME.registerComponent('branch-anim', {
       init: function(){
-        const P = CFG.P;
         const aspect = CFG.aspect || 1;
-        const planeW = 1;
-        const planeH = 1 / aspect;
-        const maxDepth = 0.35;
+        this.tick_ = 0;
         const ox = CFG.imgOx||0, oy = CFG.imgOy||0, sw = CFG.imgSw||1, sh = CFG.imgSh||1;
 
-        this.P = P;
-        this.tick_ = 0;
-
-        function toAR(nx, ny, nz){
-          return [
-            (nx - 0.5) * planeW,
-            -(ny - 0.5) * planeH,
-            ((nz + 1) / 2) * maxDepth
-          ];
-        }
-
-        // Collect all segments with metadata
-        const segs = [];
-        function flattenNode(node, startTime){
-          const STEPS = 12;
-          for(let i=0;i<STEPS;i++){
-            const u0=i/STEPS, u1=(i+1)/STEPS;
-            const ax=bez(node.sx,node.cp1x,node.cp2x,node.ex,u0);
-            const ay=bez(node.sy,node.cp1y,node.cp2y,node.ey,u0);
-            const az=node.sz+(node.ez-node.sz)*u0;
-            const bx=bez(node.sx,node.cp1x,node.cp2x,node.ex,u1);
-            const by=bez(node.sy,node.cp1y,node.cp2y,node.ey,u1);
-            const bz=node.sz+(node.ez-node.sz)*u1;
-            segs.push({ a:toAR(ax,ay,az), b:toAR(bx,by,bz),
-              t: startTime + u0, depth: node.depth });
-          }
-          node.children.forEach(c=> flattenNode(c.node, startTime + c.tOrig));
-        }
-
-        CFG.branches.forEach(b=>{
-          const seed = b.sx*3.1+b.sy*7.3;
+        // Build trees — image-relative coords → canvas-normalized
+        this.trees = CFG.branches.map(b=>{
           const csx=ox+b.sx*sw, csy=oy+b.sy*sh;
           const cex=ox+b.ex*sw, cey=oy+b.ey*sh;
-          const tree = buildNode(csx,csy,b.sz,cex,cey,b.ez,P.branchDepth,seed,P);
-          flattenNode(tree, 0);
+          const seed=b.sx*3.1+b.sy*7.3;
+          return { tree: buildNode(csx,csy,b.sz,cex,cey,b.ez,P.branchDepth,seed,P), sz:b.sz, ez:b.ez };
         });
 
-        this.segs = segs;
-        const N = segs.length;
+        // Canvas — 1024px wide, height from aspect ratio
+        const CW = 1024, CH = Math.round(1024/aspect);
+        const canvas = document.createElement('canvas');
+        canvas.width = CW; canvas.height = CH;
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.CW = CW; this.CH = CH;
 
-        // Single geometry with 2 vertices per segment
-        const positions = new Float32Array(N * 6);
-        segs.forEach((s,i)=>{
-          positions[i*6+0]=s.a[0]; positions[i*6+1]=s.a[1]; positions[i*6+2]=s.a[2];
-          positions[i*6+3]=s.b[0]; positions[i*6+4]=s.b[1]; positions[i*6+5]=s.b[2];
+        // Texture on plane
+        const tex = new THREE.CanvasTexture(canvas);
+        this.tex = tex;
+        tex.minFilter = THREE.LinearFilter;
+
+        const planeH = 1/aspect;
+        const plane = document.createElement('a-plane');
+        plane.setAttribute('width', '1');
+        plane.setAttribute('height', String(planeH.toFixed(4)));
+        plane.setAttribute('material', 'transparent:true;opacity:1;shader:flat;src:' );
+        this.el.appendChild(plane);
+        plane.addEventListener('loaded', ()=>{
+          const mesh = plane.getObject3D('mesh');
+          if(mesh){
+            mesh.material.map = tex;
+            mesh.material.transparent = true;
+            mesh.material.needsUpdate = true;
+          }
         });
-
-        // Per-vertex color array — we animate opacity by setting alpha via vertexColors
-        const colors = new Float32Array(N * 8); // rgba x 2 verts
-        this.colors = colors;
-
-        const col = new THREE.Color(P.color1);
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        // We'll drive visibility by moving invisible segs to origin
-        // Simpler: use a single material, toggle per-segment via color alpha
-        // THREE.js LineSegments uses vertexColors so we can set per-vertex alpha
-        const colArr = new Float32Array(N * 6); // rgb x 2 verts
-        for(let i=0;i<N*2;i++){
-          colArr[i*3]=col.r; colArr[i*3+1]=col.g; colArr[i*3+2]=col.b;
-        }
-        geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
-
-        // Store alpha separately, update positions to hide/show
-        this.posAttr = geo.getAttribute('position');
-        this.hiddenPos = new Float32Array(N * 6); // all zeros = origin
-        this.visiblePos = positions.slice();
-
-        const mat = new THREE.LineBasicMaterial({
-          vertexColors: true,
-          transparent: true,
-          opacity: 1,
-          depthWrite: false
-        });
-
-        const lines = new THREE.LineSegments(geo, mat);
-        this.geo = geo;
-        this.mat = mat;
-        this.el.object3D.add(lines);
-
-        // Start with everything hidden
-        this.posAttr.array.fill(0);
-        this.posAttr.needsUpdate = true;
-
+        this.plane = plane;
       },
 
       tick: function(time, dt){
-        this.tick_ += dt * 0.001;
-        const P = this.P;
+        this.tick_ += dt * 0.001 * 60; // convert to frame-like ticks
+        const t = this.tick_;
+        const ctx = this.ctx;
+        const CW = this.CW, CH = this.CH;
 
+        // Growth progress — same formula as app
+        const cycLen = 220 / P.growthSpeed;
+        const ph = (t % cycLen) / cycLen;
+        let gp;
+        if(ph < 0.82){
+          gp = (ph/0.82)*1.8;
+        } else {
+          gp = 1.8;
+        }
 
-        const cycLen = 3.5 / P.growthSpeed;
-        const ph = (this.tick_ % cycLen) / cycLen;
-        const gp = ph < 0.82 ? (ph/0.82)*2.8 : 2.8;
-        const fade = ph > 0.88 ? Math.max(0, 1-(ph-0.88)/0.12) : 1;
+        ctx.clearRect(0,0,CW,CH);
 
-        const posArr = this.posAttr.array;
-        const visArr = this.visiblePos;
-        let changed = false;
-
-        this.segs.forEach((s,i)=>{
-          const dr = s.depth / P.branchDepth; const depthAlpha = P.opacity * dr * dr * 0.95;
-          const visible = gp > s.t;
-          const alpha = visible ? Math.min((gp-s.t)/0.08,1)*depthAlpha*fade : 0;
-          // Show/hide by moving to real position or origin
-          const base = i*6;
-          if(alpha > 0.01){
-            if(posArr[base] !== visArr[base]){
-              posArr[base]=visArr[base]; posArr[base+1]=visArr[base+1]; posArr[base+2]=visArr[base+2];
-              posArr[base+3]=visArr[base+3]; posArr[base+4]=visArr[base+4]; posArr[base+5]=visArr[base+5];
-              changed = true;
-            }
-          } else {
-            if(posArr[base] !== 0 || posArr[base+1] !== 0){
-              posArr[base]=0;posArr[base+1]=0;posArr[base+2]=0;
-              posArr[base+3]=0;posArr[base+4]=0;posArr[base+5]=0;
-              changed = true;
-            }
-          }
-          // Update material opacity won't work per-segment on LineSegments
-          // Instead scale alpha into color brightness
-          // Actually just use global opacity for the whole mesh and show/hide per seg
+        this.trees.forEach(b=>{
+          if(b.tree) drawNode(ctx, CW, CH, b.tree, gp, t, 0, 0);
         });
 
-        // Update global opacity for fade
-        this.mat.opacity = fade * P.opacity;
-        this.mat.needsUpdate = true;
-        if(changed){ this.posAttr.needsUpdate = true; }
+        this.tex.needsUpdate = true;
       }
     });
     </script>
