@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":25,"lengthDecay":0.65,"branchWidth":7,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#d97757","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.37736966824644547,"sy":0.4407582938388626,"sz":-1,"ex":0.34419431279620855,"ey":0.2345971563981043,"ez":0.2},{"sx":0.6119668246445498,"sy":0.3554502369668247,"sz":-1,"ex":0.6404028436018957,"ey":-0.03791469194312793,"ez":1},{"sx":0.37736966824644547,"sy":0.7345971563981042,"sz":-1,"ex":0.3678909952606635,"ey":1.0308056872037914,"ez":-0.85}],"aspect":0.6,"imgOx":-6.735002234692893e-17,"imgOy":0.1998577524893314,"imgSw":1.0000000000000002,"imgSh":0.6002844950213372}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.28,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":30,"lengthDecay":0.62,"branchWidth":7,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#d97757","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.3678909952606635,"sy":0.45023696682464454,"sz":-1,"ex":0.3726303317535545,"ey":0.21563981042654032,"ez":0},{"sx":0.6048578199052133,"sy":0.3459715639810427,"sz":-1,"ex":0.5977488151658767,"ey":-0.033175355450236914,"ez":1},{"sx":0.37736966824644547,"sy":0.7322274881516588,"sz":-1,"ex":0.37736966824644547,"ey":1.0639810426540282,"ez":-0.9}],"aspect":0.6,"imgOx":-6.735002234692893e-17,"imgOy":0.1998577524893314,"imgSw":1.0000000000000002,"imgSh":0.6002844950213372}</script>
     <script>
     const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
     const P = CFG.P;
@@ -252,12 +252,12 @@ function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
       }
     });
 
-    // Main animation component — attached directly to the a-plane
+    // Branch animation — attached to the image-target entity
+    // Creates a raw Three.js mesh, bypassing A-Frame material system entirely
     AFRAME.registerComponent('branch-anim', {
       init: function(){
         const aspect = CFG.aspect || 1;
         this.tick_ = 0;
-        this.matApplied = false;
         const ox = CFG.imgOx||0, oy = CFG.imgOy||0, sw = CFG.imgSw||1, sh = CFG.imgSh||1;
 
         // Build trees
@@ -279,40 +279,20 @@ function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
         tex.minFilter = THREE.LinearFilter;
         this.tex = tex;
 
-        // Replace A-Frame material with raw Three.js MeshBasicMaterial
-        // Do this on object3dset to ensure mesh exists
-        const applyMat = () => {
-          const mesh = this.el.getObject3D('mesh');
-          if(mesh){
-            mesh.material = new THREE.MeshBasicMaterial({
-              map: tex,
-              transparent: true,
-              side: THREE.DoubleSide,
-              depthWrite: false
-            });
-            this.matApplied = true;
-          }
-        };
-        this.el.addEventListener('object3dset', applyMat);
-        // Also try immediately in case mesh already exists
-        applyMat();
+        // Create raw Three.js plane mesh — A-Frame never touches this
+        const planeW = 1, planeH = 1 / aspect;
+        const geo = new THREE.PlaneGeometry(planeW, planeH);
+        const mat = new THREE.MeshBasicMaterial({
+          map: tex,
+          transparent: true,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        this.mesh = new THREE.Mesh(geo, mat);
+        this.el.object3D.add(this.mesh);
       },
 
       tick: function(time, dt){
-        // Retry material application if mesh wasn't ready in init
-        if(!this.matApplied){
-          const mesh = this.el.getObject3D('mesh');
-          if(mesh){
-            mesh.material = new THREE.MeshBasicMaterial({
-              map: this.tex,
-              transparent: true,
-              side: THREE.DoubleSide,
-              depthWrite: false
-            });
-            this.matApplied = true;
-          }
-        }
-
         this.tick_ += dt * 0.001 * 60;
         const t = this.tick_;
         const ctx = this.ctx;
@@ -340,8 +320,7 @@ function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
       device-orientation-permission-ui="enabled: false"
     >
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-      <a-entity mindar-image-target="targetIndex: 0" smooth-target>
-        <a-plane branch-anim width="1" height="1.6667" material="shader:flat;transparent:true;opacity:1;" rotation="0 0 0"></a-plane>
+      <a-entity mindar-image-target="targetIndex: 0" smooth-target branch-anim>
       </a-entity>
     </a-scene>
   </body>
