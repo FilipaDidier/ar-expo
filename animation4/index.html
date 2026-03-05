@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
-    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":27,"lengthDecay":0.6,"branchWidth":7,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#08b41d","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.37736966824644547,"sy":0.43364928909952605,"sz":-1,"ex":0.35604265402843605,"ey":0.22748815165876776,"ez":-0.5},{"sx":0.6048578199052133,"sy":0.3459715639810427,"sz":-1,"ex":0.6309241706161137,"ey":-0.021327014218009428,"ez":0.7},{"sx":0.37973933649289093,"sy":0.7369668246445498,"sz":-1,"ex":0.32286729857819907,"ey":1.066350710900474,"ez":-0.75}],"aspect":0.6,"imgOx":-6.735002234692893e-17,"imgOy":0.1998577524893314,"imgSw":1.0000000000000002,"imgSh":0.6002844950213372}</script>
+    <script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":4,"subBranches":4,"subSubBranches":5,"spreadAngle":34,"lengthDecay":0.6,"branchWidth":7,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#1920e6","color2":"#6a9bcc","opacity":0.9},"branches":[{"sx":0.375,"sy":0.4383886255924171,"sz":-1,"ex":0.370260663507109,"ey":0.21563981042654032,"ez":0.25},{"sx":0.6024881516587678,"sy":0.3459715639810427,"sz":-1,"ex":0.6546208530805687,"ey":-0.1374407582938388,"ez":0.9},{"sx":0.37736966824644547,"sy":0.7251184834123222,"sz":-1,"ex":0.365521327014218,"ey":1.1540284360189572,"ez":-0.7}],"aspect":0.6,"imgOx":-6.735002234692893e-17,"imgOy":0.1998577524893314,"imgSw":1.0000000000000002,"imgSh":0.6002844950213372}</script>
     <script>
     const CFG = JSON.parse(document.getElementById('cfg-data').textContent);
     const P = CFG.P;
@@ -252,73 +252,60 @@ function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
       }
     });
 
-    // Main animation component using canvas texture — exact same drawing code as the creator app
+    // Main animation component — attached directly to the a-plane
     AFRAME.registerComponent('branch-anim', {
       init: function(){
         const aspect = CFG.aspect || 1;
         this.tick_ = 0;
+        this.texApplied = false;
         const ox = CFG.imgOx||0, oy = CFG.imgOy||0, sw = CFG.imgSw||1, sh = CFG.imgSh||1;
 
-        // Build trees — image-relative coords → canvas-normalized
+        // Build trees
         this.trees = CFG.branches.map(b=>{
           const csx=ox+b.sx*sw, csy=oy+b.sy*sh;
           const cex=ox+b.ex*sw, cey=oy+b.ey*sh;
           const seed=b.sx*3.1+b.sy*7.3;
-          return { tree: buildNode(csx,csy,b.sz,cex,cey,b.ez,P.branchDepth,seed,P), sz:b.sz, ez:b.ez };
+          return buildNode(csx,csy,b.sz,cex,cey,b.ez,P.branchDepth,seed,P);
         });
 
-        // Canvas — 1024px wide, height from aspect ratio
+        // Canvas
         const CW = 1024, CH = Math.round(1024/aspect);
         const canvas = document.createElement('canvas');
         canvas.width = CW; canvas.height = CH;
-        this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.CW = CW; this.CH = CH;
 
-        // Texture on plane
         const tex = new THREE.CanvasTexture(canvas);
-        this.tex = tex;
         tex.minFilter = THREE.LinearFilter;
-
-        const planeH = 1/aspect;
-        const plane = document.createElement('a-plane');
-        plane.setAttribute('width', '1');
-        plane.setAttribute('height', String(planeH.toFixed(4)));
-        plane.setAttribute('material', 'transparent:true;opacity:1;shader:flat;src:' );
-        this.el.appendChild(plane);
-        plane.addEventListener('loaded', ()=>{
-          const mesh = plane.getObject3D('mesh');
-          if(mesh){
-            mesh.material.map = tex;
-            mesh.material.transparent = true;
-            mesh.material.needsUpdate = true;
-          }
-        });
-        this.plane = plane;
+        this.tex = tex;
       },
 
       tick: function(time, dt){
-        this.tick_ += dt * 0.001 * 60; // convert to frame-like ticks
+        // Apply texture to mesh as soon as it exists (may not be ready in init)
+        if(!this.texApplied){
+          const mesh = this.el.getObject3D('mesh');
+          if(mesh && mesh.material){
+            mesh.material.map = this.tex;
+            mesh.material.transparent = true;
+            mesh.material.opacity = 1;
+            mesh.material.needsUpdate = true;
+            this.texApplied = true;
+          }
+        }
+
+        this.tick_ += dt * 0.001 * 60;
         const t = this.tick_;
         const ctx = this.ctx;
         const CW = this.CW, CH = this.CH;
 
-        // Growth progress — same formula as app
         const cycLen = 220 / P.growthSpeed;
         const ph = (t % cycLen) / cycLen;
-        let gp;
-        if(ph < 0.82){
-          gp = (ph/0.82)*1.8;
-        } else {
-          gp = 1.8;
-        }
+        const gp = ph < 0.82 ? (ph/0.82)*1.8 : 1.8;
 
         ctx.clearRect(0,0,CW,CH);
-
-        this.trees.forEach(b=>{
-          if(b.tree) drawNode(ctx, CW, CH, b.tree, gp, t, 0, 0);
+        this.trees.forEach(tree=>{
+          if(tree) drawNode(ctx, CW, CH, tree, gp, t, 0, 0);
         });
-
         this.tex.needsUpdate = true;
       }
     });
@@ -334,7 +321,7 @@ function buildNode(sx,sy,sz, ex,ey,ez, depth, seed){
     >
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       <a-entity mindar-image-target="targetIndex: 0" smooth-target>
-        <a-entity branch-anim></a-entity>
+        <a-plane branch-anim width="1" height="1.6667" material="shader:flat;transparent:true;opacity:1;" rotation="0 0 0"></a-plane>
       </a-entity>
     </a-scene>
   </body>
