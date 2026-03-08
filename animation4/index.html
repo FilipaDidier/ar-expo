@@ -1,4 +1,4 @@
-<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script><script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script><script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.28,"branchDepth":5,"subBranches":4,"subSubBranches":5,"spreadAngle":37,"lengthDecay":0.6,"branchWidth":1,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#0c3c66","color2":"#6a9bcc","opacity":1},"anim":"branches","branches":[{"sx":0.37655860349127174,"sy":0.43017456359102246,"sz":-1,"ex":0.36658354114713215,"ey":0.27805486284289277,"ez":-0.45},{"sx":0.6059850374064838,"sy":0.34289276807980057,"sz":-1,"ex":0.5835411471321695,"ey":-0.07855361596009965,"ez":0},{"sx":0.3740648379052369,"sy":0.7369077306733167,"sz":-1,"ex":0.3740648379052369,"ey":1.0785536159600997,"ez":-0.7}],"aspect":0.6,"imgOx":-7.087708087382545e-17,"imgOy":0.19985029940119756,"imgSw":1.0000000000000002,"imgSh":0.6002994011976048}</script><script>const CFG=JSON.parse(document.getElementById("cfg-data").textContent);
+<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script><script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script><script id="cfg-data" type="application/json">{"P":{"growthSpeed":0.5,"curviness":0.24,"branchDepth":5,"subBranches":4,"subSubBranches":5,"spreadAngle":34,"lengthDecay":0.65,"branchWidth":1.5,"postSway":0.3,"swaySpeed":0.4,"swayDuration":4,"nodeCount":60,"connDist":130,"connOpacity":0.6,"nodeSize":3,"twinkle":0.5,"moveSpeed":0.4,"dropCount":120,"fallSpeed":4,"dropLen":22,"windAng":5,"rippleCount":5,"rippleSpeed":1.5,"maxRad":150,"rippleW":1.5,"ffCount":40,"glowSize":14,"ffSpeed":0.8,"flicker":0.04,"particleCount":500,"flowSpeed":1,"noiseScale":0.006,"trailLen":8,"color1":"#294b62","color2":"#6a9bcc","opacity":0.9},"anim":"branches","branches":[{"sx":0.37777777777777777,"sy":0.425,"sz":-1,"ex":0.3625,"ey":0.21250000000000002,"ez":-0.25},{"sx":0.6125,"sy":0.35208333333333336,"sz":-1,"ex":0.5708333333333333,"ey":-0.11458333333333334,"ez":0.65},{"sx":0.3770833333333333,"sy":0.7333333333333334,"sz":-1,"ex":0.38125,"ey":1.0687500000000003,"ez":-0.75}],"aspect":0.6,"imgOx":0,"imgOy":0.2,"imgSw":1,"imgSh":0.6}</script><script>const CFG=JSON.parse(document.getElementById("cfg-data").textContent);
 const P=CFG.P;
 const ANIM=CFG.anim;
 function hRGB(h){return{r:parseInt(h.slice(1,3),16),g:parseInt(h.slice(3,5),16),b:parseInt(h.slice(5,7),16)}}
@@ -14,83 +14,4 @@ function drawRain(ctx,W,H,rX,rY,parts){var wr=P.windAng*Math.PI/180,wx=Math.sin(
 function drawRipples(ctx,W,H,rX,rY,parts){var c1=hRGB(P.color1),c2=hRGB(P.color2);parts.forEach(function(p,i){p.r+=P.rippleSpeed*.002;if(p.r>1){p.r=0;p.x=.1+Math.random()*.8;p.y=.1+Math.random()*.8;}var al=P.opacity*(1-p.r)*.9,cx=p.x*W,cy=p.y*H,rx=p.r*P.maxRad,ry=rx*.5,col=i===0?c2:c1;ctx.save();ctx.strokeStyle="rgba("+col.r+","+col.g+","+col.b+","+al+")";ctx.lineWidth=P.rippleW;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);ctx.stroke();ctx.restore();});}
 function drawFF(ctx,W,H,rX,rY,parts){var c1=hRGB(P.color1),c2=hRGB(P.color2);parts.forEach(function(p,i){p.ph+=P.flicker;p.x+=p.vx*P.ffSpeed+Math.sin(p.ph)*.001;p.y+=p.vy*P.ffSpeed+Math.cos(p.ph*1.2)*.001;if(p.x<.02||p.x>.98)p.vx*=-1;if(p.y<.02||p.y>.98)p.vy*=-1;p.x=Math.max(.02,Math.min(.98,p.x));p.y=Math.max(.02,Math.min(.98,p.y));var bri=.3+.7*Math.abs(Math.sin(p.ph)),px=p.x*W,py=p.y*H,gr=P.glowSize*bri,col=i%3===0?c2:c1,g=ctx.createRadialGradient(px,py,0,px,py,gr);g.addColorStop(0,"rgba("+col.r+","+col.g+","+col.b+","+(P.opacity*bri)+")");g.addColorStop(.5,"rgba("+col.r+","+col.g+","+col.b+","+(P.opacity*bri*.3)+")");g.addColorStop(1,"rgba("+col.r+","+col.g+","+col.b+",0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,gr,0,Math.PI*2);ctx.fill();});}
 function drawFlow(ctx,W,H,rX,rY,parts){var c1=hRGB(P.color1),c2=hRGB(P.color2),tk=0;parts.forEach(function(p,i){tk++;var ang=(Math.sin(p.x*3.7+tk*P.noiseScale*12)*Math.cos(p.y*4.1-tk*P.noiseScale*8.4)+Math.sin(p.x*7.3-tk*P.noiseScale*15.6)*Math.cos(p.y*6.9+tk*P.noiseScale*12)*0.5)*Math.PI*2;p.vx=Math.cos(ang)*P.flowSpeed*.001;p.vy=Math.sin(ang)*P.flowSpeed*.001;p.h.push({x:p.x,y:p.y});if(p.h.length>P.trailLen)p.h.shift();p.x+=p.vx;p.y+=p.vy;p.lf+=.003;if(p.x<0||p.x>1||p.y<0||p.y>1||p.lf>1){p.x=Math.random();p.y=Math.random();p.lf=0;p.h=[];}if(p.h.length<2)return;var col=i%3===0?c2:c1;ctx.lineCap="round";ctx.lineJoin="round";for(var k=1;k<p.h.length;k++){var pv={x:p.h[k-1].x*W,y:p.h[k-1].y*H},pc={x:p.h[k].x*W,y:p.h[k].y*H};ctx.strokeStyle="rgba("+col.r+","+col.g+","+col.b+","+(P.opacity*(k/p.h.length)*(1-p.lf)*.6)+")";ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(pv.x,pv.y);ctx.lineTo(pc.x,pc.y);ctx.stroke();}});}
-AFRAME.registerComponent("anim-main",{
-  init:function(){
-    var self=this,aspect=CFG.aspect||1;
-    this.planeH=1/aspect;
-    this.t=0;
-    var ox=CFG.imgOx||0,oy=CFG.imgOy||0,sw=CFG.imgSw||1,sh=CFG.imgSh||1;
-    if(ANIM==="branches"){
-      // Real 3D geometry: TubeGeometry meshes added directly to entity object3D
-      this.meshGroup=new THREE.Group();
-      this.el.object3D.add(this.meshGroup);
-      this.trees=CFG.branches.map(function(b){
-        var csx=ox+b.sx*sw,csy=oy+b.sy*sh,cex=ox+b.ex*sw,cey=oy+b.ey*sh;
-        return buildNode(csx,csy,b.sz,cex,cey,b.ez,P.branchDepth,b.sx*3.1+b.sy*7.3);
-      });
-    } else {
-      // Canvas texture on a-plane for all other animation types
-      this.CW=512;this.CH=Math.round(512/aspect);
-      var cvs=document.createElement("canvas");
-      cvs.id="bc0";cvs.width=this.CW;cvs.height=this.CH;cvs.style.display="none";
-      document.body.appendChild(cvs);
-      this.ctx=cvs.getContext("2d");
-      this.canvas=cvs;
-      this.parts=initParts(ANIM);
-      var pl=document.createElement("a-plane");
-      pl.setAttribute("width","1");
-      pl.setAttribute("height",this.planeH.toFixed(4));
-      pl.setAttribute("material","src:#bc0;transparent:true;shader:flat;depthWrite:false;");
-      pl.setAttribute("position","0 0 0");
-      self.el.appendChild(pl);
-      this.plane=pl;
-    }
-  },
-  tick:function(time,dt){
-    this.t+=dt*0.001*60;
-    var t=this.t;
-    if(ANIM==="branches"){
-      // Rebuild TubeGeometry meshes each tick to animate growth + sway
-      var g=this.meshGroup;
-      while(g.children.length){var m=g.children[0];m.geometry.dispose();m.material.dispose();g.remove(m);}
-      var cycLen=220/P.growthSpeed,ph=(t%cycLen)/cycLen,gp=ph<0.82?(ph/0.82)*1.8:1.8;
-      var planeH=this.planeH,col=new THREE.Color(P.color1),zS=0.3;
-      function addMeshes(node,gf0,odx,ody){
-        if(!node||gf0<=0)return;odx=odx||0;ody=ody||0;
-        var gf=Math.min(1,gf0),sw2=0;
-        if(gf0>1&&P.postSway>0){var ov=gf0-1,df=P.swayDuration>0?Math.max(0,1-ov/P.swayDuration*2):1;sw2=Math.sin(t*P.swaySpeed*0.06+node.sx*0.8+node.sy*0.5)*P.postSway*0.3*df;}
-        function aT(rx,ry){var lx=rx-node.sx,ly=ry-node.sy;if(!sw2)return{x:rx+odx,y:ry+ody};return{x:node.sx+odx+lx*Math.cos(sw2)-ly*Math.sin(sw2),y:node.sy+ody+lx*Math.sin(sw2)+ly*Math.cos(sw2)};}
-        // Apply sway/offset to all 4 bezier control points (sway is linear — safe to transform control points directly)
-        var p0=aT(node.sx,node.sy),p1=aT(node.cp1x,node.cp1y),p2=aT(node.cp2x,node.cp2y),p3=aT(node.ex,node.ey);
-        var nzS=node.sz,nzE=node.ez;
-        function toW(nx,ny,nz){return new THREE.Vector3(nx-0.5,-(ny-0.5)*planeH,((nz+1)/2)*zS);}
-        var v0=toW(p0.x,p0.y,nzS),v1=toW(p1.x,p1.y,nzS+(nzE-nzS)*0.33),v2=toW(p2.x,p2.y,nzS+(nzE-nzS)*0.67),v3=toW(p3.x,p3.y,nzE);
-        // De Casteljau: extract exact [0..gf] sub-bezier for growth animation
-        var q0,q1,q2,q3;
-        function lv(a,b,s){return new THREE.Vector3(a.x+(b.x-a.x)*s,a.y+(b.y-a.y)*s,a.z+(b.z-a.z)*s);}
-        if(gf>=1){q0=v0;q1=v1;q2=v2;q3=v3;}
-        else{var A=lv(v0,v1,gf),B=lv(v1,v2,gf),C=lv(v2,v3,gf),D=lv(A,B,gf),E=lv(B,C,gf);q0=v0;q1=A;q2=D;q3=lv(D,E,gf);}
-        var curve=new THREE.CubicBezierCurve3(q0,q1,q2,q3),r=Math.max(0.001,P.branchWidth*(node.depth/P.branchDepth)*0.003);
-        var geo=new THREE.TubeGeometry(curve,Math.max(6,Math.round(20*gf)),r,5,false);
-        var mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:P.opacity*(node.depth/P.branchDepth)*0.95});
-        g.add(new THREE.Mesh(geo,mat));
-        node.children.forEach(function(c){
-          var cf=Math.max(0,gf0-c.tOrig);if(cf<=0)return;
-          var rox=bez(node.sx,node.cp1x,node.cp2x,node.ex,c.tOrig),roy=bez(node.sy,node.cp1y,node.cp2y,node.ey,c.tOrig),to=aT(rox,roy);
-          addMeshes(c.node,cf,to.x-c.node.sx,to.y-c.node.sy);
-        });
-      }
-      this.trees.forEach(function(tree){if(tree)addMeshes(tree,gp,0,0);});
-    } else {
-      var ctx=this.ctx,CW=this.CW,CH=this.CH,parts=this.parts;
-      ctx.clearRect(0,0,CW,CH);
-      if(ANIM==="constellations")drawConst(ctx,CW,CH,0,0,parts);
-      else if(ANIM==="rain")drawRain(ctx,CW,CH,0,0,parts);
-      else if(ANIM==="ripples")drawRipples(ctx,CW,CH,0,0,parts);
-      else if(ANIM==="fireflies")drawFF(ctx,CW,CH,0,0,parts);
-      else if(ANIM==="flowfield")drawFlow(ctx,CW,CH,0,0,parts);
-      var mesh=this.plane&&this.plane.getObject3D("mesh");
-      if(mesh&&mesh.material&&mesh.material.map)mesh.material.map.needsUpdate=true;
-    }
-  }
-});</script></head><body style="margin:0;overflow:hidden;"><a-scene mindar-image="imageTargetSrc:./targets.mind;autoStart:true;filterMinCF:0.001;filterBeta:0.05;" color-space="sRGB" renderer="colorManagement:true" vr-mode-ui="enabled:false" device-orientation-permission-ui="enabled:false"><a-camera position="0 0 0" look-controls="enabled:false"></a-camera><a-entity mindar-image-target="targetIndex:0" anim-main></a-entity></a-scene></body></html>
+AFRAME.registerComponent("anim-main",{init:function(){var self=this,aspect=CFG.aspect||1;this.planeH=1/aspect;this.t=0;var ox=CFG.imgOx||0,oy=CFG.imgOy||0,sw=CFG.imgSw||1,sh=CFG.imgSh||1;if(ANIM==="branches"){this.meshGroup=new THREE.Group();this.el.object3D.add(this.meshGroup);this.trees=CFG.branches.map(function(b){var csx=ox+b.sx*sw,csy=oy+b.sy*sh,cex=ox+b.ex*sw,cey=oy+b.ey*sh;return buildNode(csx,csy,b.sz,cex,cey,b.ez,P.branchDepth,b.sx*3.1+b.sy*7.3);});}else{this.CW=512;this.CH=Math.round(512/aspect);var cvs=document.createElement("canvas");cvs.id="bc0";cvs.width=this.CW;cvs.height=this.CH;cvs.style.display="none";document.body.appendChild(cvs);this.ctx=cvs.getContext("2d");this.canvas=cvs;this.parts=initParts(ANIM);var pl=document.createElement("a-plane");pl.setAttribute("width","1");pl.setAttribute("height",this.planeH.toFixed(4));pl.setAttribute("material","src:#bc0;transparent:true;shader:flat;depthWrite:false;");pl.setAttribute("position","0 0 0");self.el.appendChild(pl);this.plane=pl;}},tick:function(time,dt){this.t+=dt*0.001*60;var t=this.t;if(ANIM==="branches"){var g=this.meshGroup;while(g.children.length){var m=g.children[0];m.geometry.dispose();m.material.dispose();g.remove(m);}var cycLen=220/P.growthSpeed,ph=(t%cycLen)/cycLen,gp=ph<0.82?(ph/0.82)*1.8:1.8;var planeH=this.planeH,col=new THREE.Color(P.color1),zS=0.3;function addMeshes(node,gf0,odx,ody){if(!node||gf0<=0)return;odx=odx||0;ody=ody||0;var gf=Math.min(1,gf0),sw2=0;if(gf0>1&&P.postSway>0){var ov=gf0-1,df=P.swayDuration>0?Math.max(0,1-ov/P.swayDuration*2):1;sw2=Math.sin(t*P.swaySpeed*0.06+node.sx*0.8+node.sy*0.5)*P.postSway*0.3*df;}function aT(rx,ry){var lx=rx-node.sx,ly=ry-node.sy;if(!sw2)return{x:rx+odx,y:ry+ody};return{x:node.sx+odx+lx*Math.cos(sw2)-ly*Math.sin(sw2),y:node.sy+ody+lx*Math.sin(sw2)+ly*Math.cos(sw2)};}var p0=aT(node.sx,node.sy),p1=aT(node.cp1x,node.cp1y),p2=aT(node.cp2x,node.cp2y),p3=aT(node.ex,node.ey);var nzS=node.sz,nzE=node.ez;function toW(nx,ny,nz){return new THREE.Vector3(nx-0.5,-(ny-0.5)*planeH,((nz+1)/2)*zS);}var v0=toW(p0.x,p0.y,nzS),v1=toW(p1.x,p1.y,nzS+(nzE-nzS)*0.33),v2=toW(p2.x,p2.y,nzS+(nzE-nzS)*0.67),v3=toW(p3.x,p3.y,nzE);var q0,q1,q2,q3;function lv(a,b,s){return new THREE.Vector3(a.x+(b.x-a.x)*s,a.y+(b.y-a.y)*s,a.z+(b.z-a.z)*s);}if(gf>=1){q0=v0;q1=v1;q2=v2;q3=v3;}else{var A=lv(v0,v1,gf),B=lv(v1,v2,gf),C=lv(v2,v3,gf),D=lv(A,B,gf),E=lv(B,C,gf);q0=v0;q1=A;q2=D;q3=lv(D,E,gf);}var curve=new THREE.CubicBezierCurve3(q0,q1,q2,q3),r=Math.max(0.001,P.branchWidth*(node.depth/P.branchDepth)*0.003);var geo=new THREE.TubeGeometry(curve,Math.max(6,Math.round(20*gf)),r,5,false);var mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:P.opacity*(node.depth/P.branchDepth)*0.95});g.add(new THREE.Mesh(geo,mat));node.children.forEach(function(c){var cf=Math.max(0,gf0-c.tOrig);if(cf<=0)return;var rox=bez(node.sx,node.cp1x,node.cp2x,node.ex,c.tOrig),roy=bez(node.sy,node.cp1y,node.cp2y,node.ey,c.tOrig),to=aT(rox,roy);addMeshes(c.node,cf,to.x-c.node.sx,to.y-c.node.sy);});}this.trees.forEach(function(tree){if(tree)addMeshes(tree,gp,0,0);});}else{var ctx=this.ctx,CW=this.CW,CH=this.CH,parts=this.parts;ctx.clearRect(0,0,CW,CH);if(ANIM==="constellations")drawConst(ctx,CW,CH,0,0,parts);else if(ANIM==="rain")drawRain(ctx,CW,CH,0,0,parts);else if(ANIM==="ripples")drawRipples(ctx,CW,CH,0,0,parts);else if(ANIM==="fireflies")drawFF(ctx,CW,CH,0,0,parts);else if(ANIM==="flowfield")drawFlow(ctx,CW,CH,0,0,parts);var mesh=this.plane&&this.plane.getObject3D("mesh");if(mesh&&mesh.material&&mesh.material.map)mesh.material.map.needsUpdate=true;}}});</script></head><body style="margin:0;overflow:hidden;"><a-scene mindar-image="imageTargetSrc:./targets.mind;autoStart:true;filterMinCF:0.001;filterBeta:0.05;" color-space="sRGB" renderer="colorManagement:true" vr-mode-ui="enabled:false" device-orientation-permission-ui="enabled:false"><a-camera position="0 0 0" look-controls="enabled:false"></a-camera><a-entity mindar-image-target="targetIndex:0" anim-main></a-entity></a-scene></body></html>
